@@ -43,8 +43,10 @@ export function verifyFileURI(fileURI: vscode.Uri): { "validForTask": boolean, "
 	}
 	return retVal
 }
-/// Document ideally would be a vscode.TextDocument or TextDocument from the language server
-/// vscode.TextDocument has the .uri:Uri while language server provides ._uri:string
+// Given a URI, retrieve the symbols from the related document.
+// If no URI is given, try to use the current document.
+// This method can filter the symbol type returned, mathcing the 'detail' of the symbol
+// This method can also limit the results by range.  If no range is given, the entire set of symbols is returned.
 export async function getFileSymbols(uri?:string, symbolType?:String,range?:vscode.Range): Promise<vscode.DocumentSymbol[]> {
 	let docUri:vscode.Uri;
 	// If the uri is provided, parse it into a vsCode.Uri

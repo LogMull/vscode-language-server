@@ -15,17 +15,9 @@ export async function fixAllFixable() {
 	// Should be a Diagnostic array, but server-side also includes a data node which is important for us here.
 	let wsEdit = new WorkspaceEdit();
 	let processedRanges: Range[] = [];
-	let tempValidTypes:any[] = require('./osTempAutoFixTypes.json')
 	let skippedTypes = new Map();
 	let filtered = diagnostics.filter(diagnostic => {
 		if (!diagnostic.data || !diagnostic.data.fixRange) return false;
-		if (tempValidTypes.indexOf(diagnostic.code) == -1){
-			let currentValue = skippedTypes.get(diagnostic.code);
-			if (!currentValue) currentValue=0
-			skippedTypes.set(diagnostic.code,currentValue+1);
-			return false;
-		} 
-
 		return true
 	})
 	let overlapSkip=0;
@@ -33,7 +25,7 @@ export async function fixAllFixable() {
 		// If it is not one of our diagnostics or we don't have a fix for it, continue
 		if (!diagnostic.data || !diagnostic.data.fixRange) continue;
 
-		if (tempValidTypes.indexOf(diagnostic.code)==-1) continue;
+		
 		// fixRange comes from the server's definition of Range, which use similar, but different data types.
 		// Conver it to a vscode.Range so that comparisons can work correctly.
 		const diagRange = new Range(diagnostic.data.fixRange.start, diagnostic.data.fixRange.end);

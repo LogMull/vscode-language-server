@@ -14,19 +14,19 @@ import {
 	ServerOptions,
 	TransportKind
 } from 'vscode-languageclient/node';
-import { makeRESTRequest, ServerSpec } from './makeRestRequest';
+// import { makeRESTRequest, ServerSpec } from './makeRestRequest';
 import { fixAllFixable } from './commands';
 export let client: LanguageClient;
 
-type MakeRESTRequestParams = {
-	method: "GET" | "POST";
-	api: number;
-	path: string;
-	server: ServerSpec;
-	data?: any;
-	checksum?: string;
-	params?: any;
-}
+// type MakeRESTRequestParams = {
+// 	method: "GET" | "POST";
+// 	api: number;
+// 	path: string;
+// 	server: ServerSpec;
+// 	data?: any;
+// 	checksum?: string;
+// 	params?: any;
+// }
 /**
  * Cache for cookies from REST requests to InterSystems servers.
  */

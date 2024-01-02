@@ -1,6 +1,6 @@
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { Position, Range } from 'vscode-languageserver/node'
-import { connection } from './utils/variables';
+// import { connection } from './utils/variables';
 const jsMethodRegex = new RegExp("^ClientMethod.*language\\s*=\\s*javascript", "im");
 const jsMethodBreakdown = /ClientMethod\s*(\w+)\(([\w,\W]*)\)\s*(\[.*\])\n/i
 
@@ -13,18 +13,18 @@ export interface CleanMethodResults {
 	methodName:string,
 	comment:string
 }
-export async function makeRESTRequest(method: "GET" | "POST", api: number, path: string, server: ServerSpec, data?: any, checksum?: string, params?: any): Promise<any | undefined> {
-	// As of version 2.0.0, REST requests are made on the client side
-	return connection.sendRequest("osc/makeRESTRequest", {
-		method,
-		api,
-		path,
-		server,
-		data,
-		checksum,
-		params
-	}).then((respdata) => respdata ?? undefined);
-}
+// export async function makeRESTRequest(method: "GET" | "POST", api: number, path: string, server: ServerSpec, data?: any, checksum?: string, params?: any): Promise<any | undefined> {
+// 	// As of version 2.0.0, REST requests are made on the client side
+// 	return connection.sendRequest("osc/makeRESTRequest", {
+// 		method,
+// 		api,
+// 		path,
+// 		server,
+// 		data,
+// 		checksum,
+// 		params
+// 	}).then((respdata) => respdata ?? undefined);
+// }
 
 
 export function getCleanMethod(originalRange: Range, document: TextDocument): CleanMethodResults {
