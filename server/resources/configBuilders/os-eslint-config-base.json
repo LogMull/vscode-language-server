@@ -1,0 +1,17 @@
+{
+	"parserOptions": {
+		"ecmaVersion": 2022,
+		
+		"sourceType": "script"
+	},
+	"env": {
+		"es2021": true,
+		"jquery":true,
+		"browser": true
+	},
+	"globals": {
+		"document": "readonly",
+		"navigator": "readonly",
+		"window": "readonly"
+	}
+}
