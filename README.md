@@ -1,37 +1,28 @@
-# LSP Example
+# osc-language-server
 
-Heavily documented sample code for https://code.visualstudio.com/api/language-extensions/language-server-extension-guide
+This VSCode extension is intended to be used alongside InterSystems Language Server for some additional features when working with Cache Objectscript.  This extension will add linting abilities to the embedded javascript within Cache Objectscript classes.  ESLint does the majority of the heavy lifting for the functionality.
 
 ## Functionality
+The extension will provide diagnostics as well as auto-fix capabilities for such diagnostics.
 
-This Language Server works for plain text file. It has the following language features:
-- Completions
-- Diagnostics regenerated on each file change or configuration change
 
-It also includes an End-to-End test.
+Ability to fix all fixable issues in a given class.  This is similar to vscode's autofix command.
 
-## Structure
+## External References
+XML Formatting https://www.npmjs.com/package/xml-js, both used as distributed and modified for our specific use case, permitted under the MIT Liscense.
+Intersystems Language Server, used for symbol recognition within classes and macros
+Intersystems Server Manager, used for authentication to the Version Manager namespace
 
-```
-.
-├── client // Language Client
-│   ├── src
-│   │   ├── test // End to End tests for Language Client / Server
-│   │   └── extension.ts // Language Client entry point
-├── package.json // The extension manifest.
-└── server // Language Server
-    └── src
-        └── server.ts // Language Server entry point
-```
+## Linter Rules
+Due to how ESLint is being run in the extension, we jump through several additional hoops to specify our rules for linting.  This is because ESLint looks at paths relative to where nodejs is running, in this case, this in vscode context, so none of our normal relative paths work as expected. In order to get around this, we build and maintain our own config file that can be passed directly into ESLint as a configuration object.  We maintain two version, a style-only configuration, which is used for the plugin's formatting capabiliies, and a 'combined' configuration which consists of both style and functional rules, used for the linting process.
 
-## Running the Sample
 
-- Run `npm install` in this folder. This installs all necessary npm modules in both the client and server folder
-- Open VS Code on this folder.
-- Press Ctrl+Shift+B to start compiling the client and server in [watch mode](https://code.visualstudio.com/docs/editor/tasks#:~:text=The%20first%20entry%20executes,the%20HelloWorld.js%20file.).
-- Switch to the Run and Debug View in the Sidebar (Ctrl+Shift+D).
-- Select `Launch Client` from the drop down (if it is not already).
-- Press ▷ to run the launch config (F5).
-- In the [Extension Development Host](https://code.visualstudio.com/api/get-started/your-first-extension#:~:text=Then%2C%20inside%20the%20editor%2C%20press%20F5.%20This%20will%20compile%20and%20run%20the%20extension%20in%20a%20new%20Extension%20Development%20Host%20window.) instance of VSCode, open a document in 'plain text' language mode.
-  - Type `j` or `t` to see `Javascript` and `TypeScript` completion.
-  - Enter text content such as `AAA aaa BBB`. The extension will emit diagnostics for all words in all-uppercase.
+The directory `server/resources/configBuilders/` contains several important things related to this process
+* os-eslint-config-base.json - Base configuration shared between configs
+* os-zenIncludes.json - Similar to config-base, contains globals that exist in our environment, for example, zenIndex, zenPage, osEvent, etc.
+* os-functional-only-rules.json - Functional linting rules that go beyond styling
+* os-style-only-rules.json - Style rules only.
+* buildConfig.ts -  Used to generate final config files used by the extension.  When any of the above are changed, this should be executed to regenerate the configs.
+
+
+The linting rules were intiailly based off of StandardJS, but has been modified to closer align with the styling preferences of the development team.
