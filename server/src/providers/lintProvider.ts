@@ -11,8 +11,8 @@ import {
 } from 'vscode-languageserver-textdocument';
 const { ESLint } = require("eslint");
 // Home brew includes
-import { CleanMethodResults, getCleanMethod } from '../utils'
-const esLintCombinedConfig = require('../../resources/os-eslint-combined-config.json');
+import { CleanMethodResults, getCleanMethod } from './utils'
+const esLintCombinedConfig = require('./os-eslint-combined-config.json');  // Dev note - stored in resources/*
 // Setup for static variables
 const jsMethodRegex = new RegExp("^ClientMethod.*language\\s*=\\s*javascript", "im");
 const jsMethodBreakdown = new RegExp("ClientMethod\\s*(\\w+)\\(([\\w,\\W]*)\\)\\s*(\\[.*\\])\n", "i")
@@ -187,6 +187,7 @@ async function validateSingleJSSymbol(symbol:any,document:TextDocument):Promise<
 		results = await eslint.lintText(cleanResults.methodText);
 	} catch (ex) {
 		console.log('Exception when linting '+symbol.name)
+		console.log(ex)
 		return diagnostics;
 	}
 	for (let message of results[0].messages) {

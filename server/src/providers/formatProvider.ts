@@ -1,7 +1,7 @@
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { CleanMethodResults, getCleanMethod } from '../utils'
-const esLintStyleConfig = require('../../resources/os-eslint-style-config.json');
+import { CleanMethodResults, getCleanMethod } from './utils'
+const esLintStyleConfig = require('./os-eslint-style-config.json'); // Dev note - stored in resources/*
 const { ESLint } = require("eslint");
 const convert = require('xml-js');
 // set up ESLint to automatically fix issues, using the style-only guide.
