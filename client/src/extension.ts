@@ -4,7 +4,7 @@
  * ------------------------------------------------------------------------------------------ */
 
 import * as path from 'path';
-import { workspace, ExtensionContext,commands, Range, Position } from 'vscode';
+import { workspace, ExtensionContext, commands, Range, Position } from 'vscode';
 import * as vscode from 'vscode';
 // import * as Cache from 'vscode-cache' - TODO when we add rest api
 import { getFileSymbols } from './utils';
@@ -39,7 +39,7 @@ export function activate(context: ExtensionContext) {
 
 	// If the extension is launched in debug mode then the debug server options are used
 	// Otherwise the run options are used
-	 let debugOptions = { execArgv: ['--nolazy', '--inspect=6019'] };
+	let debugOptions = { execArgv: ['--nolazy', '--inspect=6019'] };
 	const serverOptions: ServerOptions = {
 		run: { module: serverModule, transport: TransportKind.ipc },
 		debug: {
@@ -66,16 +66,16 @@ export function activate(context: ExtensionContext) {
 		serverOptions,
 		clientOptions
 	);
-	
+
 	// Add handlers for the commands we expose
-	commands.registerCommand("osc.language-server.fixAll", () =>{
+	commands.registerCommand("osc.language-server.fixAll", () => {
 		handleFixes(false);
 	});
-	commands.registerCommand("osc.language-server.fixSelection", () =>{
+	commands.registerCommand("osc.language-server.fixSelection", () => {
 		handleFixes(true);
 	});
-	commands.registerCommand("osc.language-server.fixTypes", () =>{
-		handleFixes(false,true);
+	commands.registerCommand("osc.language-server.fixTypes", () => {
+		handleFixes(false, true);
 	});
 
 	// client.onRequest("osc/makeRESTRequest", async (args: MakeRESTRequestParams): Promise<any | undefined> => {
@@ -91,7 +91,7 @@ export function activate(context: ExtensionContext) {
 	// }),
 	// Start the client. This will also launch the server
 	client.start();
-	
+
 	// Subscribe to any requests that may float up from the server
 	context.subscriptions.push(
 		client.onRequest('osc/getSymbols', symbolHandler)
@@ -99,12 +99,12 @@ export function activate(context: ExtensionContext) {
 }
 
 /// Helper to handle getting the symbols from a uri in an optional range.
-function symbolHandler(args:{type?:string,uri?:string,range?:any}):Promise<vscode.DocumentSymbol[]>{
+function symbolHandler(args: { type?: string, uri?: string, range?: any }): Promise<vscode.DocumentSymbol[]> {
 	let range = args.range;
-	if (args.range){
-		range = new Range(new Position(range.start.line,range.start.character),new Position(range.end.line,range.end.character) );
+	if (args.range) {
+		range = new Range(new Position(range.start.line, range.start.character), new Position(range.end.line, range.end.character));
 	}
-	return getFileSymbols(args.uri, args.type,range);
+	return getFileSymbols(args.uri, args.type, range);
 }
 export function deactivate(): Thenable<void> | undefined {
 	if (!client) {

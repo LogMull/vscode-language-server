@@ -60,7 +60,7 @@ connection.onInitialize((params: InitializeParams) => {
 			textDocumentSync: TextDocumentSyncKind.Incremental,
 			documentFormattingProvider: true,
 			documentRangeFormattingProvider: true,
-			foldingRangeProvider:true
+			foldingRangeProvider: true
 			// Tell the client that this server supports code completion.
 			// completionProvider: {
 			// 	resolveProvider: false
@@ -107,10 +107,6 @@ connection.onCodeAction((params: CodeActionParams) => {
 			return; // Note for the future - if loop changes to a for...in or similar, change return to continue.  forEach operates differently
 		}
 		// For each of the entries, create an action object which contains an edit
-		let textedit: TextEdit = {
-			newText: diagnostic.data.fixText,
-			range: diagnostic.data.fixRange
-		}
 		// Create the action object
 		let actionObj = {
 			title: diagnostic.data.fixMessage,
@@ -127,8 +123,7 @@ connection.onCodeAction((params: CodeActionParams) => {
 			diagnostics: [diagnostic]
 		}
 		codeActions.push(actionObj);
-	})
-
+	});
 
 	return codeActions;
 });
@@ -137,7 +132,7 @@ connection.onDocumentRangeFormatting(formatDocumentRange)
 connection.onFoldingRanges(onFoldingRanges);
 /// Helper to format the document. This method handles formatting the entire document
 async function formatDocument(params: DocumentFormattingParams): Promise<TextEdit[] | null> {
-	
+
 	const clientMethods: any[] = await connection.sendRequest('osc/getSymbols', { uri: params.textDocument.uri, type: "ClientMethod" });
 	const xmlSymbols: any[] = await connection.sendRequest('osc/getSymbols', { uri: params.textDocument.uri, type: "XData" });
 	const document = documents.get(params.textDocument.uri)
@@ -148,13 +143,6 @@ async function formatDocument(params: DocumentFormattingParams): Promise<TextEdi
 	return Promise.resolve(
 		result
 	);
-}
-async function onFoldingRanges(params: FoldingRangeParams):Promise<FoldingRange[] | null>{
-	const document = documents.get(params.textDocument.uri)
-	if (!document) return null
-
-	const clientMethods: any[] = await connection.sendRequest('osc/getSymbols', { uri: params.textDocument.uri, type: "ClientMethod" });
-	return provideFoldRanges(document,clientMethods)
 }
 
 /// Helper to format the document. This method handles formatting the any symbols contained in the selected range
@@ -171,7 +159,14 @@ async function formatDocumentRange(params: DocumentRangeFormattingParams): Promi
 		result
 	);
 }
+/// Handler to provide folding ranges. This method gets the appropriate symbols and passes it to the worker
+async function onFoldingRanges(params: FoldingRangeParams): Promise<FoldingRange[] | null> {
+	const document = documents.get(params.textDocument.uri)
+	if (!document) return null
 
+	const clientMethods: any[] = await connection.sendRequest('osc/getSymbols', { uri: params.textDocument.uri, type: "ClientMethod" });
+	return provideFoldRanges(document, clientMethods)
+}
 // The example settings
 interface ExampleSettings {
 	maxNumberOfProblems: number;
@@ -197,21 +192,6 @@ connection.onDidChangeConfiguration(change => {
 	}
 
 });
-
-function getDocumentSettings(resource: string): Thenable<ExampleSettings> {
-	if (!hasConfigurationCapability) {
-		return Promise.resolve(globalSettings);
-	}
-	let result = documentSettings.get(resource);
-	if (!result) {
-		result = connection.workspace.getConfiguration({
-			scopeUri: resource,
-			section: 'languageServerExample'
-		});
-		documentSettings.set(resource, result);
-	}
-	return result;
-}
 
 // Only keep settings for open documents
 documents.onDidClose(e => {

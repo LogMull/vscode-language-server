@@ -1,18 +1,18 @@
-import { commands, Diagnostic, CodeAction, Range,workspace, window, languages,WorkspaceEdit, Uri, Selection } from 'vscode';
+import {Range, workspace, window, languages, WorkspaceEdit, Uri, Selection } from 'vscode';
 
 // the Diagnostic type available to the client is slightly different than the server version.
-type diagnosticData={
-	code:string,
+type diagnosticData = {
+	code: string,
 	data:
-	{ uri: string, fixText: string, fixRange: any, fixMessage: string},
-	hasDiagnosticCode:boolean,
-	message:string
-	range:any,
-	severity:number,
-	source:string
+	{ uri: string, fixText: string, fixRange: any, fixMessage: string },
+	hasDiagnosticCode: boolean,
+	message: string
+	range: any,
+	severity: number,
+	source: string
 }
 // Main entry point for handling fixes in the current document
-export async function handleFixes(isSelection?:boolean,promptTypes?:boolean){
+export async function handleFixes(isSelection?: boolean, promptTypes?: boolean) {
 	const activeEditor = window.activeTextEditor;
 	if (!activeEditor) return;
 	const document = activeEditor.document
@@ -20,36 +20,36 @@ export async function handleFixes(isSelection?:boolean,promptTypes?:boolean){
 	// Get all of the diagnostics for the current document
 	const uri = window.activeTextEditor.document.uri;
 	const diagnostics: diagnosticData[] = languages.getDiagnostics(uri) as diagnosticData[];
-	
-	let filterFunc = (selection:Selection,codes:string[]) => (diagnostic:diagnosticData, index, array) => {
+
+	let filterFunc = (selection: Selection, codes: string[]) => (diagnostic: diagnosticData, index, array) => {
 		// Filter anything without fix data
 		if (!diagnostic.data || !diagnostic.data.fixRange) return false;
 		// If selection is provided, ensure that they intersect
 		if (selection && !selection.intersection(diagnostic.range)) return false;
 		// Filter by provided codes
 		if (codes && !codes.includes(diagnostic.code)) return false;
-		
+
 		return true;
 	}
-	let selection:Selection;
-	let codes:string[];
+	let selection: Selection;
+	let codes: string[];
 	// If we care about the selection from here, get it
-	if (isSelection){
+	if (isSelection) {
 		selection = activeEditor.selection;
 	}
 	// If prompting for types, get a list of unique codes
-	if (promptTypes){
-		const uniqueCodes = [...new Set(diagnostics.filter((diagnostic: diagnosticData) => diagnostic.data && diagnostic.data.fixRange).map((diagnostic:diagnosticData) => diagnostic.code))];
-		codes = await window.showQuickPick(uniqueCodes,{title:'Diagnostic codes to fix',canPickMany:true});
+	if (promptTypes) {
+		const uniqueCodes = [...new Set(diagnostics.filter((diagnostic: diagnosticData) => diagnostic.data && diagnostic.data.fixRange).map((diagnostic: diagnosticData) => diagnostic.code))];
+		codes = await window.showQuickPick(uniqueCodes, { title: 'Diagnostic codes to fix', canPickMany: true });
 	}
 
 	// Execute the filter function
-	let filtered = diagnostics.filter(filterFunc(selection,codes));
-	fixDiagnostics(filtered,uri);
+	let filtered = diagnostics.filter(filterFunc(selection, codes));
+	fixDiagnostics(filtered, uri);
 }
 
 // Workhorse function that handles actually fixing the provided diagnostics
-function fixDiagnostics(diagnostics: diagnosticData[],uri:Uri){
+function fixDiagnostics(diagnostics: diagnosticData[], uri: Uri) {
 	let processedRanges: Range[] = [];
 	let overlapSkip = 0;
 	let skippedTypes = new Map();
@@ -57,7 +57,6 @@ function fixDiagnostics(diagnostics: diagnosticData[],uri:Uri){
 	for (let diagnostic of diagnostics) {
 		// If it is not one of our diagnostics or we don't have a fix for it, continue
 		if (!diagnostic.data || !diagnostic.data.fixRange) continue;
-
 
 		// fixRange comes from the server's definition of Range, which use similar, but different data types.
 		// Conver it to a vscode.Range so that comparisons can work correctly.

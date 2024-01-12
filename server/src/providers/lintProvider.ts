@@ -33,15 +33,13 @@ var elapsed_time = function (note: string, start: any) {
 /// Validate an objectscript-class file.  Currently only supports clientMethods
 export async function validateObjClass(connection: _Connection, document: TextDocument): Promise<Diagnostic[]> {
 	const symbols: any[] = await connection.sendRequest('osc/getSymbols', { uri: document.uri, type: 'ClientMethod' });
-	// Find all of the XData nodes to start with very likely XML
-	// const xDataSymbols = symbols.filter((el) => el.detail == 'XData');
-	// let diagnostics = validateJSSymbols(document, symbols)
+
 	let start = process.hrtime()
 	let ruleMap = new Map();
 	let diagnostics = await validateJSSymbols(document, symbols)
 
-	elapsed_time("Lint - ",start)
-	for (const diag of diagnostics){
+	elapsed_time("Linting Time - ", start)
+	for (const diag of diagnostics) {
 		let currentValue = ruleMap.get(diag.code);
 		if (!currentValue) currentValue = 0
 		ruleMap.set(diag.code, currentValue + 1);
@@ -51,156 +49,61 @@ export async function validateObjClass(connection: _Connection, document: TextDo
 		diagnostics
 	);
 }
-
+/// This method creates promises to validate individual javascript symbols.
 async function validateJSSymbols(document: TextDocument, symbols: any[]): Promise<Diagnostic[]> {
-	let promiseArray:Promise<Diagnostic[]>[]=[];
+	let promiseArray: Promise<Diagnostic[]>[] = [];
 	for (let symbol of symbols) {
-		promiseArray.push(validateSingleJSSymbol(symbol,document))
+		promiseArray.push(validateSingleJSSymbol(symbol, document))
 	}
+	// Wait for all promises to reslove
 	let results = await Promise.all(promiseArray);
-
 
 	return Promise.resolve(results.flat());
 
 }
-/// Validate Javascript Symbols.  Clientmethods which are not Javascript will be skipped.
-async function validateJSSymbolsOld(document: TextDocument, symbols: any[]): Promise<Diagnostic[]> {
-	let diagnostics: Diagnostic[] = [];
 
-	let ruleMap = new Map();
-	// Iterate over all ClientMethod symbols
-	for (let symbol of symbols) {
-		try {
-			let symbolStart = Position.create(symbol.location.range[0].line, symbol.location.range[0].character)
-			let symbolEnd = Position.create(symbol.location.range[1].line, symbol.location.range[1].character)
-			let symbolRange = Range.create(symbolStart, symbolEnd);
-			let cleanResults: CleanMethodResults = getCleanMethod(symbolRange, document)
-			if (!cleanResults.isOk) continue;
-			let results;
-			try {
-				results = await eslint.lintText(cleanResults.methodText);
-			} catch (ex) {
-				debugger;
-				continue;
-			}
-			for (let message of results[0].messages) {
-				if (message.ruleId == 'no-unused-vars' && message.line == 1) continue; // The method name will appear as unused, unless it recursively calls itself, so ignore that error when on line 1
-				if (message.line == 1) continue; // The method name will appear as unused, unless it recursively calls itself, so ignore that error when on line 1
-				if (message.ruleId == 'brace-style' && message.line == 2) continue; // Language server forces curly brackets to be under the method, so ignore that violation	
-
-				// This line may be uncommented when needed.  These are some of the most common problems in the codebase which do not have auto-fixes
-				//if (['no-mixed-spaces-and-tabs', 'eqeqeq', 'no-var', 'no-redeclare', 'no-undef', "no-unused-vars"].indexOf(message.ruleId) != -1) continue;
-				let diagStart = Position.create(cleanResults.range.start.line + message.line, cleanResults.range.start.character + message.column - 1);
-				let diagEnd = diagStart;
-				if (message.endLine != undefined) {
-					diagEnd = Position.create(cleanResults.range.start.line + message.endLine, message.endColumn - 1);
-				}
-				let ruleException = checkRuleExceptions(message.ruleId, document, diagStart)
-				// There are a few exceptions to the normal rules, so check those now.
-				if (!ruleException.showDiagnostic) {
-					continue;
-				}
-
-				let diagData: { uri: string, fixText?: string, fixRange?: Range, fixMessage?: string, origFix?: any } = {
-					uri: document.uri
-				}
-				// We now have the start + end of the diagnostic information, which will be used for styling + alerting the user
-				// Next, if there is an available fix, we will try to translate that from substring positions to a Range that vscode can use to apply changes.
-				// Our custom rule exception can skip providing a fix.
-				if (message.fix && ruleException.showFix) {
-					const fixStartPos = message.fix.range[0];
-					const fixEndPos = message.fix.range[1];
-
-					let start = getPosition(cleanResults.methodText, fixStartPos);
-					let end = getPosition(cleanResults.methodText, fixEndPos);
-					// start/end should contain 0-based line/column offsets
-					let fixStart = Position.create(cleanResults.range.start.line + start.line + 1, cleanResults.range.start.character + start.column);
-					let fixEnd = Position.create(cleanResults.range.start.line + end.line + 1, end.column);
-					let fixRange = Range.create(fixStart, fixEnd);
-
-					diagData.fixText = message.fix.text;
-					diagData.fixRange = fixRange;
-					diagData.fixMessage = `Apply fix for '${message.ruleId}'`
-
-
-				}
-				let severity: DiagnosticSeverity = message.severity == '2' ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning;
-
-				if (infoOverrides.indexOf(message.ruleId) != -1) {
-					severity = DiagnosticSeverity.Information;
-				}
-				if (hintOverrides.indexOf(message.ruleId) != -1) {
-					severity = DiagnosticSeverity.Hint;
-				}
-
-				let diag: Diagnostic = {
-					code: message.ruleId,
-					message: message.message,
-					range: Range.create(diagStart, diagEnd),
-					severity: severity,
-					source: cleanResults.methodName,
-					data: diagData
-				}
-				diagnostics.push(diag)
-				let currentValue = ruleMap.get(diag.code);
-				if (!currentValue) currentValue = 0
-				ruleMap.set(diag.code, currentValue + 1);
-			}
-
-		}
-		catch (ex) {
-			debugger;
-		}
-
-
-	}
-	console.log(ruleMap)
-	return Promise.resolve(
-		diagnostics
-	);
-}
-
-async function validateSingleJSSymbol(symbol:any,document:TextDocument):Promise<Diagnostic[]>{
+/// Validate an individual symbol. This will crea teh appropriate diagnostics for any issues
+async function validateSingleJSSymbol(symbol: any, document: TextDocument): Promise<Diagnostic[]> {
 	let diagnostics: Diagnostic[] = [];
 
 	let symbolStart = Position.create(symbol.location.range[0].line, symbol.location.range[0].character)
 	let symbolEnd = Position.create(symbol.location.range[1].line, symbol.location.range[1].character)
 	let symbolRange = Range.create(symbolStart, symbolEnd);
 	let cleanResults: CleanMethodResults = getCleanMethod(symbolRange, document)
-	if (!cleanResults.isOk){
-		console.log('Failed to get method text for '+symbol.name)
+	if (!cleanResults.isOk) {
+		console.log('Failed to get method text for ' + symbol.name)
 		return diagnostics;
-	} 
+	}
 	// In addition to what esLint returns, we also require that a client method has a comment.
-	if (cleanResults.comment.trim().length==0){
+	if (cleanResults.comment.trim().length == 0) {
 		let fixStart = Position.create(cleanResults.range.start.line, cleanResults.range.start.character);
 		let fixEnd = fixStart
 		let fixRange = Range.create(fixStart, fixEnd);
-		
+
 		let diagData: { uri: string, fixText?: string, fixRange?: Range, fixMessage?: string, origFix?: any } = {
 			uri: document.uri
 		}
-		let fixLines:string[] = [];
+		let fixLines: string[] = [];
 		fixLines.push(`/// ${cleanResults.methodName}`)
 		fixLines.push('///\tSummary of method functionality');
 		// Add in placeholder for parameter info as well
-		if (cleanResults.parameters.trim().length){
+		if (cleanResults.parameters.trim().length) {
 			fixLines.push('///\t\tInput Parameters')
-			for (let param of cleanResults.parameters.split(',')){
+			for (let param of cleanResults.parameters.split(',')) {
 				fixLines.push(`///\t\t\t${param.trim()} - datatype - description/default/etc`)
 			}
 		}
 		fixLines.push('///\t\tReturns')
 		fixLines.push('///\t\t\tDescribe return value, if any')
-		
-		
-		diagData.fixText = fixLines.join('\n')+'\n';
+
+
+		diagData.fixText = fixLines.join('\n') + '\n';
 		diagData.fixRange = fixRange;
 		diagData.fixMessage = 'Add default method comment'
 		diagnostics.push({
 			code: 'osc-missing-comment',
 			message: 'Missing method comment',
-			range: Range.create(symbolStart, Position.create(symbolStart.line,12)),
+			range: Range.create(symbolStart, Position.create(symbolStart.line, 12)),
 			severity: DiagnosticSeverity.Warning,
 			source: cleanResults.methodName,
 			data: diagData
@@ -210,7 +113,7 @@ async function validateSingleJSSymbol(symbol:any,document:TextDocument):Promise<
 	try {
 		results = await eslint.lintText(cleanResults.methodText);
 	} catch (ex) {
-		console.log('Exception when linting '+symbol.name)
+		console.log('Exception when linting ' + symbol.name)
 		console.log(ex)
 		return diagnostics;
 	}
@@ -219,8 +122,6 @@ async function validateSingleJSSymbol(symbol:any,document:TextDocument):Promise<
 		if (message.line == 1) continue; // The method name will appear as unused, unless it recursively calls itself, so ignore that error when on line 1
 		if (message.ruleId == 'brace-style' && message.line == 2) continue; // Language server forces curly brackets to be under the method, so ignore that violation	
 
-		// This line may be uncommented when needed.  These are some of the most common problems in the codebase which do not have auto-fixes
-		//if (['no-mixed-spaces-and-tabs', 'eqeqeq', 'no-var', 'no-redeclare', 'no-undef', "no-unused-vars"].indexOf(message.ruleId) != -1) continue;
 		let diagStart = Position.create(cleanResults.range.start.line + message.line, cleanResults.range.start.character + message.column - 1);
 		let diagEnd = diagStart;
 		if (message.endLine != undefined) {
@@ -255,6 +156,7 @@ async function validateSingleJSSymbol(symbol:any,document:TextDocument):Promise<
 
 
 		}
+		// Check for overrides of specific rules
 		let severity: DiagnosticSeverity = message.severity == '2' ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning;
 
 		if (infoOverrides.indexOf(message.ruleId) != -1) {
@@ -274,7 +176,7 @@ async function validateSingleJSSymbol(symbol:any,document:TextDocument):Promise<
 		}
 		diagnostics.push(diag)
 	}
-	
+
 
 	return Promise.resolve(
 		diagnostics

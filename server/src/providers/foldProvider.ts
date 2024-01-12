@@ -71,7 +71,7 @@ function findBracePairs(text: string): BracePair[] {
 		} else if (char === '*' && text[i + 1] === '/' && !insideString) {
 			insideComment = false;
 			i++; // Skip the '*' in '*/'
-		} else if ((char === '\'' || char === '"' || char ==='`') && !insideComment) {
+		} else if ((char === '\'' || char === '"' || char === '`') && !insideComment) {
 			if (insideString && currentQuoteChar === char) {
 				// Closing quote, toggle insideString off
 				insideString = false;

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
 // Use the language server to get the symboles in the document
-export async function getSymbols(uri:vscode.Uri): Promise<vscode.DocumentSymbol[]> {
+export async function getSymbols(uri: vscode.Uri): Promise<vscode.DocumentSymbol[]> {
 	return await vscode.commands.executeCommand<vscode.DocumentSymbol[]>('vscode.executeDocumentSymbolProvider', uri) || [];
 }
 export function verifyFileURI(fileURI: vscode.Uri): { "validForTask": boolean, "validForSymbol": boolean, "elName": string, "elType": string, "validationMessage": string } {
@@ -47,18 +47,18 @@ export function verifyFileURI(fileURI: vscode.Uri): { "validForTask": boolean, "
 // If no URI is given, try to use the current document.
 // This method can filter the symbol type returned, mathcing the 'detail' of the symbol
 // This method can also limit the results by range.  If no range is given, the entire set of symbols is returned.
-export async function getFileSymbols(uri?:string, symbolType?:String,range?:vscode.Range): Promise<vscode.DocumentSymbol[]> {
-	let docUri:vscode.Uri;
+export async function getFileSymbols(uri?: string, symbolType?: String, range?: vscode.Range): Promise<vscode.DocumentSymbol[]> {
+	let docUri: vscode.Uri;
 	// If the uri is provided, parse it into a vsCode.Uri
-	if (uri){
-		docUri =vscode.Uri.parse(uri);
-	}else{
+	if (uri) {
+		docUri = vscode.Uri.parse(uri);
+	} else {
 		const activeEditor = vscode.window.activeTextEditor;
 		if (activeEditor) {
 			docUri = activeEditor.document.uri;
 		}
 	}
-	
+
 	if (!docUri) return [] // should not allow symbol lookup if there's nothing selected
 
 	const valInfo = verifyFileURI(docUri);
@@ -68,19 +68,18 @@ export async function getFileSymbols(uri?:string, symbolType?:String,range?:vsco
 	}
 	// Get a list of all of the symbols for the current document
 	const symbols = await getSymbols(docUri);
-	const list = [];
 	let array = symbols;
 	if (symbols[0].kind == 4) { // kind==4 means class, so the entries will be nested inside it's children
 		array = symbols[0].children
 	}
 	// If a symbol type is provided, ensure every symbol matches it.
-	if (symbolType){
+	if (symbolType) {
 		array = array.filter((el) => el.detail == symbolType);
 	}
 	// If a range is provided, ensure every symbol overlaps with it
-	if (range){
+	if (range) {
 		array = array.filter(el => el.range.intersection(range))
 	}
-	
+
 	return Promise.resolve(array);
 }
