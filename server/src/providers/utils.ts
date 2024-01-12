@@ -4,14 +4,14 @@ import { Position, Range } from 'vscode-languageserver/node'
 const jsMethodRegex = new RegExp("^ClientMethod.*language\\s*=\\s*javascript", "im");
 const jsMethodBreakdown = /ClientMethod\s*(\w+)\(([\w,\W]*)\)\s*(\[.*\])\n/i
 
-export interface CleanMethodResults { 
-	isOk: boolean, 
-	range: Range, 
+export interface CleanMethodResults {
+	isOk: boolean,
+	range: Range,
 	methodText: string,
-	squareBrackets:string,
-	parameters:string,
-	methodName:string,
-	comment:string
+	squareBrackets: string,
+	parameters: string,
+	methodName: string,
+	comment: string
 }
 // export async function makeRESTRequest(method: "GET" | "POST", api: number, path: string, server: ServerSpec, data?: any, checksum?: string, params?: any): Promise<any | undefined> {
 // 	// As of version 2.0.0, REST requests are made on the client side
@@ -29,7 +29,7 @@ export interface CleanMethodResults {
 
 export function getCleanMethod(originalRange: Range, document: TextDocument): CleanMethodResults {
 
-	let returnObj = {isOk:false,comment:''} as CleanMethodResults;
+	let returnObj = { isOk: false, comment: '' } as CleanMethodResults;
 	let wholeNode = document.getText(originalRange);
 	let lines = wholeNode.split('\n');
 	let methodOffset = 0;
@@ -42,13 +42,11 @@ export function getCleanMethod(originalRange: Range, document: TextDocument): Cl
 		}
 	}
 	// Get the comment information, if applicable.
-	if (methodOffset!=0){
-		let commentRange = Range.create(Position.create(originalRange.start.line,0),Position.create(originalRange.start.line+methodOffset-1,lines[methodOffset-1].length))
+	if (methodOffset != 0) {
+		let commentRange = Range.create(Position.create(originalRange.start.line, 0), Position.create(originalRange.start.line + methodOffset - 1, lines[methodOffset - 1].length))
 		returnObj.comment = document.getText(commentRange);
 	}
-	// let newRange = new vscode.Range(new vscode.Position(symbol.range.start.line+methodOffset+1,0),new vscode.Position(symbol.range.end.line,1));
 	// Exclues ClientMethod XXX () [language = javascript]
-	//let newRange = new vscode.Range(new vscode.Position(symbol.range.start.line + methodOffset + 1, 0), symbol.range.end);
 	let newRange = Range.create(Position.create(originalRange.start.line + methodOffset, 0), originalRange.end);
 
 	let methodText = document.getText(newRange);
@@ -64,13 +62,20 @@ export function getCleanMethod(originalRange: Range, document: TextDocument): Cl
 
 	methodText = methodText.replace(jsMethodBreakdown, "function $1($2)")
 
-
 	returnObj.methodText = methodText;
-	returnObj.isOk=true;
-	returnObj.range=newRange;
-	returnObj.squareBrackets=squarebrackets
-	returnObj.parameters=params
-	returnObj.methodName=methodName
+	returnObj.isOk = true;
+	returnObj.range = newRange;
+	returnObj.squareBrackets = squarebrackets
+	returnObj.parameters = params
+	returnObj.methodName = methodName
 
 	return returnObj;
+}
+
+/// Helper to get a Range from a 'symbol' with a location based range
+export function symbolLocationToRange(symbol: any): Range {
+	let symbolStart = Position.create(symbol.location.range[0].line, symbol.location.range[0].character)
+	let symbolEnd = Position.create(symbol.location.range[1].line, symbol.location.range[1].character)
+	let symbolRange = Range.create(symbolStart, symbolEnd);
+	return symbolRange
 }

@@ -11,8 +11,8 @@ import {
 } from 'vscode-languageserver-textdocument';
 const { ESLint } = require("eslint");
 // Home brew includes
-import { CleanMethodResults, getCleanMethod } from '../utils'
-const esLintCombinedConfig = require('../../resources/os-eslint-combined-config.json');
+import { CleanMethodResults, getCleanMethod } from './utils'
+const esLintCombinedConfig = require('./os-eslint-combined-config.json');  // Dev note - stored in resources/*
 // Setup for static variables
 const jsMethodRegex = new RegExp("^ClientMethod.*language\\s*=\\s*javascript", "im");
 const jsMethodBreakdown = new RegExp("ClientMethod\\s*(\\w+)\\(([\\w,\\W]*)\\)\\s*(\\[.*\\])\n", "i")
@@ -173,13 +173,37 @@ async function validateSingleJSSymbol(symbol:any,document:TextDocument):Promise<
 	} 
 	// In addition to what esLint returns, we also require that a client method has a comment.
 	if (cleanResults.comment.trim().length==0){
+		let fixStart = Position.create(cleanResults.range.start.line, cleanResults.range.start.character);
+		let fixEnd = fixStart
+		let fixRange = Range.create(fixStart, fixEnd);
+		
+		let diagData: { uri: string, fixText?: string, fixRange?: Range, fixMessage?: string, origFix?: any } = {
+			uri: document.uri
+		}
+		let fixLines:string[] = [];
+		fixLines.push(`/// ${cleanResults.methodName}`)
+		fixLines.push('///\tSummary of method functionality');
+		// Add in placeholder for parameter info as well
+		if (cleanResults.parameters.trim().length){
+			fixLines.push('///\t\tInput Parameters')
+			for (let param of cleanResults.parameters.split(',')){
+				fixLines.push(`///\t\t\t${param.trim()} - datatype - description/default/etc`)
+			}
+		}
+		fixLines.push('///\t\tReturns')
+		fixLines.push('///\t\t\tDescribe return value, if any')
+		
+		
+		diagData.fixText = fixLines.join('\n')+'\n';
+		diagData.fixRange = fixRange;
+		diagData.fixMessage = 'Add default method comment'
 		diagnostics.push({
 			code: 'osc-missing-comment',
 			message: 'Missing method comment',
 			range: Range.create(symbolStart, Position.create(symbolStart.line,12)),
 			severity: DiagnosticSeverity.Warning,
 			source: cleanResults.methodName,
-			//data: diagData
+			data: diagData
 		})
 	}
 	let results;
@@ -187,6 +211,7 @@ async function validateSingleJSSymbol(symbol:any,document:TextDocument):Promise<
 		results = await eslint.lintText(cleanResults.methodText);
 	} catch (ex) {
 		console.log('Exception when linting '+symbol.name)
+		console.log(ex)
 		return diagnostics;
 	}
 	for (let message of results[0].messages) {
