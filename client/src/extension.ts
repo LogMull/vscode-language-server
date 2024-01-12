@@ -15,7 +15,7 @@ import {
 	TransportKind
 } from 'vscode-languageclient/node';
 // import { makeRESTRequest, ServerSpec } from './makeRestRequest';
-import { handleFixes } from './commands';
+import { handleFixes, handleGotoSymbol } from './commands';
 export let client: LanguageClient;
 
 // type MakeRESTRequestParams = {
@@ -76,6 +76,9 @@ export function activate(context: ExtensionContext) {
 	});
 	commands.registerCommand("osc.language-server.fixTypes", () => {
 		handleFixes(false, true);
+	});
+	commands.registerCommand('osc.language-server.gotosymbol', async () => {
+		handleGotoSymbol();
 	});
 
 	// client.onRequest("osc/makeRESTRequest", async (args: MakeRESTRequestParams): Promise<any | undefined> => {

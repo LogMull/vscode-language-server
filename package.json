@@ -1,5 +1,7 @@
 {
 	"name": "osc-language-server",
+	"icon": "flame128.jpg",
+	"displayName": "Finvi Language Server",
 	"description": "Finvi Language Server",
 	"author": "Logan Mullet",
 	"license": "MIT",
@@ -77,6 +79,9 @@
 				"command": "osc.language-server.fixTypes",
 				"title": "Fix Problems in Document by Type",
 				"category": "Finvi Language Server"
+			},{
+				"command": "osc.language-server.gotosymbol",
+				"title": "Go to symbol with offset"
 			}
 		]
 	},
