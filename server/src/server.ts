@@ -9,24 +9,23 @@ import {
 	ProposedFeatures,
 	InitializeParams,
 	DidChangeConfigurationNotification,
-	CompletionItem,
-	CompletionItemKind,
-	TextDocumentPositionParams,
 	TextDocumentSyncKind,
 	InitializeResult,
 	CodeActionParams,
 	CodeAction,
 	CodeActionKind,
-	WorkspaceEdit,
 	TextEdit,
 	DocumentFormattingParams,
-	DocumentRangeFormattingParams
+	DocumentRangeFormattingParams,
+	FoldingRange,
+	FoldingRangeParams
 } from 'vscode-languageserver/node';
 import {
 	TextDocument
 } from 'vscode-languageserver-textdocument';
 import { validateObjClass } from './providers/lintProvider';
-import { onDocumentFormatting, onDocumentRangeFormatting } from './providers/formatProvider';
+import { onDocumentFormatting } from './providers/formatProvider';
+import { provideFoldRanges } from './providers/foldProvider';
 // Create a connection for the server, using Node's IPC as a transport.
 // Also include all preview / proposed LSP features.
 const connection = createConnection(ProposedFeatures.all);
@@ -60,7 +59,8 @@ connection.onInitialize((params: InitializeParams) => {
 			codeActionProvider: true,
 			textDocumentSync: TextDocumentSyncKind.Incremental,
 			documentFormattingProvider: true,
-			documentRangeFormattingProvider: true
+			documentRangeFormattingProvider: true,
+			foldingRangeProvider:true
 			// Tell the client that this server supports code completion.
 			// completionProvider: {
 			// 	resolveProvider: false
@@ -95,8 +95,6 @@ connection.onCodeAction((params: CodeActionParams) => {
 	if (textDocument === undefined) {
 		return undefined;
 	}
-
-
 	// If there are no diagnostics, do nothing
 	if (!params.context.diagnostics.length) {
 		return [];
@@ -109,16 +107,10 @@ connection.onCodeAction((params: CodeActionParams) => {
 			return; // Note for the future - if loop changes to a for...in or similar, change return to continue.  forEach operates differently
 		}
 		// For each of the entries, create an action object which contains an edit
-		let uri: string = diagnostic.data.uri;
 		let textedit: TextEdit = {
 			newText: diagnostic.data.fixText,
 			range: diagnostic.data.fixRange
 		}
-		let wsEdit: WorkspaceEdit = {
-			changes: {
-				uri: [textedit]
-			}
-		};
 		// Create the action object
 		let actionObj = {
 			title: diagnostic.data.fixMessage,
@@ -142,9 +134,10 @@ connection.onCodeAction((params: CodeActionParams) => {
 });
 connection.onDocumentFormatting(formatDocument);
 connection.onDocumentRangeFormatting(formatDocumentRange)
+connection.onFoldingRanges(onFoldingRanges);
 /// Helper to format the document. This method handles formatting the entire document
 async function formatDocument(params: DocumentFormattingParams): Promise<TextEdit[] | null> {
-
+	
 	const clientMethods: any[] = await connection.sendRequest('osc/getSymbols', { uri: params.textDocument.uri, type: "ClientMethod" });
 	const xmlSymbols: any[] = await connection.sendRequest('osc/getSymbols', { uri: params.textDocument.uri, type: "XData" });
 	const document = documents.get(params.textDocument.uri)
@@ -155,6 +148,13 @@ async function formatDocument(params: DocumentFormattingParams): Promise<TextEdi
 	return Promise.resolve(
 		result
 	);
+}
+async function onFoldingRanges(params: FoldingRangeParams):Promise<FoldingRange[] | null>{
+	const document = documents.get(params.textDocument.uri)
+	if (!document) return null
+
+	const clientMethods: any[] = await connection.sendRequest('osc/getSymbols', { uri: params.textDocument.uri, type: "ClientMethod" });
+	return provideFoldRanges(document,clientMethods)
 }
 
 /// Helper to format the document. This method handles formatting the any symbols contained in the selected range
@@ -232,8 +232,6 @@ documents.onDidChangeContent(async (change) => {
 		}
 	}
 });
-
-
 
 connection.onDidChangeWatchedFiles(_change => {
 	// Monitored files have change in VSCode

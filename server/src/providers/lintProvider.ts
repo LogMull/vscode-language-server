@@ -173,13 +173,37 @@ async function validateSingleJSSymbol(symbol:any,document:TextDocument):Promise<
 	} 
 	// In addition to what esLint returns, we also require that a client method has a comment.
 	if (cleanResults.comment.trim().length==0){
+		let fixStart = Position.create(cleanResults.range.start.line, cleanResults.range.start.character);
+		let fixEnd = fixStart
+		let fixRange = Range.create(fixStart, fixEnd);
+		
+		let diagData: { uri: string, fixText?: string, fixRange?: Range, fixMessage?: string, origFix?: any } = {
+			uri: document.uri
+		}
+		let fixLines:string[] = [];
+		fixLines.push(`/// ${cleanResults.methodName}`)
+		fixLines.push('///\tSummary of method functionality');
+		// Add in placeholder for parameter info as well
+		if (cleanResults.parameters.trim().length){
+			fixLines.push('///\t\tInput Parameters')
+			for (let param of cleanResults.parameters.split(',')){
+				fixLines.push(`///\t\t\t${param.trim()} - datatype - description/default/etc`)
+			}
+		}
+		fixLines.push('///\t\tReturns')
+		fixLines.push('///\t\t\tDescribe return value, if any')
+		
+		
+		diagData.fixText = fixLines.join('\n')+'\n';
+		diagData.fixRange = fixRange;
+		diagData.fixMessage = 'Add default method comment'
 		diagnostics.push({
 			code: 'osc-missing-comment',
 			message: 'Missing method comment',
 			range: Range.create(symbolStart, Position.create(symbolStart.line,12)),
 			severity: DiagnosticSeverity.Warning,
 			source: cleanResults.methodName,
-			//data: diagData
+			data: diagData
 		})
 	}
 	let results;

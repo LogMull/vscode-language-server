@@ -15,7 +15,7 @@ import {
 	TransportKind
 } from 'vscode-languageclient/node';
 // import { makeRESTRequest, ServerSpec } from './makeRestRequest';
-import { fixAllFixable } from './commands';
+import { handleFixes } from './commands';
 export let client: LanguageClient;
 
 // type MakeRESTRequestParams = {
@@ -66,7 +66,17 @@ export function activate(context: ExtensionContext) {
 		serverOptions,
 		clientOptions
 	);
-	commands.registerCommand("osc.language-server.fixAll", (fixAllFixable));
+	
+	// Add handlers for the commands we expose
+	commands.registerCommand("osc.language-server.fixAll", () =>{
+		handleFixes(false);
+	});
+	commands.registerCommand("osc.language-server.fixSelection", () =>{
+		handleFixes(true);
+	});
+	commands.registerCommand("osc.language-server.fixTypes", () =>{
+		handleFixes(false,true);
+	});
 
 	// client.onRequest("osc/makeRESTRequest", async (args: MakeRESTRequestParams): Promise<any | undefined> => {
 	// 	// As of version 2.0.0, REST requests are made on the client side

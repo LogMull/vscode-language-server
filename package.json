@@ -43,10 +43,39 @@
 				}
 			}
 		},
+		"menus": {
+			"editor/context": [
+				{
+					"command": "osc.language-server.fixAll",
+					"when": "vscode-objectscript.connectActive && editorLangId == objectscript-class",
+					"group": "1_modification@97"
+				},
+				{
+					"command": "osc.language-server.fixTypes",
+					"when": "vscode-objectscript.connectActive && editorLangId == objectscript-class",
+					"group": "1_modification@98"
+				},
+				{
+					"command": "osc.language-server.fixSelection",
+					"when": "vscode-objectscript.connectActive && editorLangId == objectscript-class && editorHasSelection",
+					"group": "1_modification@99"
+				}
+			]
+		},
 		"commands": [
 			{
 				"command": "osc.language-server.fixAll",
-				"title": "Fix All Automatically Fixable Problems",
+				"title": "Fix All Problems in Document",
+				"category": "Finvi Language Server"
+			},
+			{
+				"command": "osc.language-server.fixSelection",
+				"title": "Fix All Problems in Selection",
+				"category": "Finvi Language Server"
+			},
+			{
+				"command": "osc.language-server.fixTypes",
+				"title": "Fix Problems in Document by Type",
 				"category": "Finvi Language Server"
 			}
 		]
