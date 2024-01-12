@@ -5,32 +5,15 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
-			"sourceMaps": true,
-			"name": "Launch Client",
-			"runtimeExecutable": "${execPath}",
-			"args": ["--extensionDevelopmentPath=${workspaceRoot}"],
-			"outFiles": ["${workspaceRoot}/client/out/**/*.js"],
-			"preLaunchTask": {
-				"type": "npm",
-				"script": "watch"
-			}
-		},
-		{
-			"type": "node",
-			"request": "attach",
-			"name": "Attach to Server",
-			"port": 6019,
-			"restart": true,
-			"sourceMaps": true,
-			"outFiles": [
-				"${workspaceRoot}/server/out/**/*.js"
-			]
-		},
-		{
-			"type": "extensionHost",
-			"request": "launch",
 			"name": "Launch Client + Server",
 			"runtimeExecutable": "${execPath}",
+			"sourceMapPathOverrides" :{
+			"webpack://osc-language-server-client/./src/*":"${workspaceFolder}/client/src/*",
+			"webpack://osc-language-server-server/./src/*":"${workspaceFolder}/server/src/*",
+			"webpack://osc-language-server-server/./src/providers/":"${workspaceFolder}/server/src/providers/*",
+			// "webpack://osc-language-server-client/./src/extension.ts":"${workspaceFolder}/client/src/extension.ts",
+			"*/foldProvider.ts":"${workspaceFolder}/server/src/providers/foldProvider.ts"
+			},
 			"args": [
 				"--extensionDevelopmentPath=${workspaceRoot}"
 			],
