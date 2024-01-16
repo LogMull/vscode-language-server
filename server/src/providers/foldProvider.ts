@@ -29,7 +29,6 @@ export async function provideFoldRanges(document: TextDocument, clientMethodSymb
 				if (foldingRange.startLine == foldingRange.endLine || foldingRange.startLine > foldingRange.endLine) continue;
 				finalRanges.push(foldingRange);
 				foldingRange.kind = FoldingRangeKind.Region;
-				// foldingRange.collapsedText = `LCM AHHH ${count}`;
 			}
 		}
 	} catch (ex) {

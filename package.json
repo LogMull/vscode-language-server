@@ -20,6 +20,9 @@
 	"activationEvents": [
 		"onLanguage:objectscript-class"
 	],
+	"extensionDependencies": [
+		"intersystems.language-server"
+	],
 	"main": "./client/out/extension",
 	"contributes": {
 		"configuration": {

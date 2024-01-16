@@ -4,9 +4,8 @@
  * ------------------------------------------------------------------------------------------ */
 
 import * as path from 'path';
-import { workspace, ExtensionContext, commands, Range, Position } from 'vscode';
+import { ExtensionContext, commands, Range, Position } from 'vscode';
 import * as vscode from 'vscode';
-// import * as Cache from 'vscode-cache' - TODO when we add rest api
 import { getFileSymbols } from './utils';
 import {
 	LanguageClient,
@@ -14,23 +13,9 @@ import {
 	ServerOptions,
 	TransportKind
 } from 'vscode-languageclient/node';
-// import { makeRESTRequest, ServerSpec } from './makeRestRequest';
 import { handleFixes, handleGotoSymbol } from './commands';
 export let client: LanguageClient;
 
-// type MakeRESTRequestParams = {
-// 	method: "GET" | "POST";
-// 	api: number;
-// 	path: string;
-// 	server: ServerSpec;
-// 	data?: any;
-// 	checksum?: string;
-// 	params?: any;
-// }
-/**
- * Cache for cookies from REST requests to InterSystems servers.
- */
-// export let cookiesCache: Cache;
 export function activate(context: ExtensionContext) {
 	// The server is implemented in node
 	const serverModule = context.asAbsolutePath(
@@ -53,10 +38,6 @@ export function activate(context: ExtensionContext) {
 	const clientOptions: LanguageClientOptions = {
 		// Register the server for plain text documents
 		documentSelector: [{ language: 'objectscript-class' }],
-		synchronize: {
-			// Notify the server about file changes to '.clientrc files contained in the workspace
-			fileEvents: workspace.createFileSystemWatcher('**/.clientrc')
-		}
 	};
 
 	// Create the language client and start the client.
@@ -77,21 +58,11 @@ export function activate(context: ExtensionContext) {
 	commands.registerCommand("osc.language-server.fixTypes", () => {
 		handleFixes(false, true);
 	});
+	// Handle going to a symbol with an offset
 	commands.registerCommand('osc.language-server.gotosymbol', async () => {
 		handleGotoSymbol();
 	});
 
-	// client.onRequest("osc/makeRESTRequest", async (args: MakeRESTRequestParams): Promise<any | undefined> => {
-	// 	// As of version 2.0.0, REST requests are made on the client side
-	// 	return makeRESTRequest(args.method, args.api, args.path, args.server, args.data, args.checksum, args.params).then(respdata => {
-	// 		if (respdata) {
-	// 			// Can't return the entire AxiosResponse object because it's not JSON.stringify-able due to circularity
-	// 			return { data: respdata.data };
-	// 		} else {
-	// 			return undefined;
-	// 		}
-	// 	});
-	// }),
 	// Start the client. This will also launch the server
 	client.start();
 

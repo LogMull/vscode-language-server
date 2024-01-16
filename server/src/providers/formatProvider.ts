@@ -12,7 +12,6 @@ const eslint = new ESLint({
 });
 
 import { DocumentSymbol, Position, Range, TextEdit } from 'vscode-languageserver/node';
-//import * as writeXML from './xmlFormatter/xmlFormatter';
 const writeXML = require('../../xmlFormatter/xmlFormatter.js')
 
 /// Handler for formatting an entire document
@@ -24,6 +23,7 @@ export async function onDocumentFormatting(clientMethodSymbols: DocumentSymbol[]
 	formatterPromises.push(formatAllXData(XMLSymbols, document));
 
 	let edits = await Promise.all<TextEdit[]>(formatterPromises);
+	// Each of these methods return an array of edits, so flatten the results into one large array
 	return edits.flat()
 }
 
@@ -39,6 +39,7 @@ async function formatAllClientMethods(symbols: any[], document: TextDocument): P
 	let edits = await Promise.all(symbolPromises);
 	const filteredEdits: TextEdit[] = [];
 	// Since some method may not need updated, filter out every null value
+	// This way allows the typing to play nicely
 	for (const edit of edits) {
 		if (edit != null) {
 			filteredEdits.push(edit);
@@ -51,7 +52,7 @@ async function formatAllClientMethods(symbols: any[], document: TextDocument): P
 /// Format a given symbol using the style-only ruleset.
 async function formatSingleSymbol(symbolRange: Range, document: TextDocument): Promise<TextEdit | null> {
 
-	// Parse the document range to get the actual clineMethod text for us
+	// Parse the document range to get the actual clientMethod text for us
 	let cleanResults: CleanMethodResults = getCleanMethod(symbolRange, document)
 	if (!cleanResults.isOk) return null;
 	try {

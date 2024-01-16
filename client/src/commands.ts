@@ -1,4 +1,4 @@
-import {Range, workspace, window, languages, WorkspaceEdit, Uri, Selection, QuickPickItem, TextDocument, Position, TextEditorRevealType } from 'vscode';
+import { Range, workspace, window, languages, WorkspaceEdit, Uri, Selection, QuickPickItem, TextDocument, Position, TextEditorRevealType } from 'vscode';
 import { getFileSymbols } from './utils'
 /// Set up a mapping of symbol 'kinds' to the appropriate image to use in the label
 /// Markdown syntax for this is $(symbol-method)
@@ -60,7 +60,6 @@ export async function handleFixes(isSelection?: boolean, promptTypes?: boolean) 
 function fixDiagnostics(diagnostics: diagnosticData[], uri: Uri) {
 	let processedRanges: Range[] = [];
 	let overlapSkip = 0;
-	let skippedTypes = new Map();
 	let wsEdit = new WorkspaceEdit();
 	for (let diagnostic of diagnostics) {
 		// If it is not one of our diagnostics or we don't have a fix for it, continue
@@ -80,8 +79,6 @@ function fixDiagnostics(diagnostics: diagnosticData[], uri: Uri) {
 		processedRanges.push(diagRange);
 
 	}
-	console.log('Skipped fixing types:')
-	console.log(skippedTypes)
 	// Exit out if there are no changes to be processed, helps prevent us from doing extra work.
 	if (processedRanges.length == 0) {
 		let message = 'No automatically fixable items found.';
@@ -103,6 +100,7 @@ function fixDiagnostics(diagnostics: diagnosticData[], uri: Uri) {
 				return;
 			}
 			window.showWarningMessage('Unable to fix any of the issues');
+			/*
 			const oRange = processedRanges
 			for (let range of processedRanges) {
 				if (range.start.line == range.end.line && range.end.character == range.start.character) {
@@ -112,10 +110,11 @@ function fixDiagnostics(diagnostics: diagnosticData[], uri: Uri) {
 				}
 
 			}
+			*/
 		});
 }
 
-
+/// Handle going to a symbol in a document and providing the ability to go to an offset relative to the start or end of that symbol
 export async function handleGotoSymbol() {
 	// Always assume the current document
 	const activeEditor = window.activeTextEditor;
@@ -139,7 +138,7 @@ export async function handleGotoSymbol() {
 	const oSel = activeEditor.selection;
 	// As the symbol name is being set, jump to the currently selected one.
 	const symbolSelect = (item: QuickPickItem) => {
-		goToSymbolInternal(activeEditor.document, item, 0);
+		goToSymbolInternal(item, 0);
 	}
 	const symbol = await window.showQuickPick(list, { placeHolder: 'Select a symbol.', title: `Available Symbols.`, matchOnDescription: true, 'onDidSelectItem': symbolSelect })
 	// If a symbol was not selected, do nothing further
@@ -169,27 +168,21 @@ export async function handleGotoSymbol() {
 		offset = offset.split('$')[1];
 	}
 
-	goToSymbolInternal(activeEditor.document, symbol, offset, referenceFromEnd);
+	goToSymbolInternal(symbol, parseInt(offset), referenceFromEnd);
 }
 
 // Given the document, desired symbol and line offset number, go to a symbol.
-function goToSymbolInternal(document: TextDocument, symbol, offset, referenceFromEnd?: boolean) {
-	const rangeOffset = parseInt(offset);
-
+function goToSymbolInternal(symbol, offset:number=0, referenceFromEnd?: boolean) {
 	const range = symbol.symbolDetail.selectionRange;
-	let start = 0;
+	let start = range.start.line;
 	if (referenceFromEnd) {
 		start = symbol.symbolDetail.range.end.line;
-	} else {
-		start = range.start.line;
 	}
-	start = Math.max(start + rangeOffset, 0);
-
+	// Ensure we do not drop before the start of the document
+	start = Math.max(start + offset, 0);
 	const startPos = new Position(start, 0);
-
-	const endPos = new Position(startPos.line, startPos.character); // Only really care about the starting point, never going to be pre-selecting an actual range.
-
-	const newRange = new Range(startPos, endPos)
+	// Only really care about the starting point, never going to be pre-selecting an actual range, so use the start range for both here
+	const newRange = new Range(startPos, startPos)
 
 	// Now that the offset is known, try to go to it.
 	window.activeTextEditor.revealRange(newRange, TextEditorRevealType.InCenter);
