@@ -62,7 +62,15 @@ export function activate(context: ExtensionContext) {
 	commands.registerCommand('osc.language-server.gotosymbol', async () => {
 		handleGotoSymbol();
 	});
-
+	    // Update the configuration when it changes
+	const disposable = vscode.workspace.onDidChangeConfiguration(() => {
+		let requireModifications = vscode.workspace.getConfiguration('osc.language-server').get('requireModifications', true);
+		// Notify the Language Server about the configuration change
+		
+		client.sendNotification('osc/didChangeConfiguration', { settings: { 'osc.language-server': { requireModifications } } });
+	});
+	
+		context.subscriptions.push(disposable);
 	// Start the client. This will also launch the server
 	client.start();
 

@@ -18,7 +18,8 @@ import {
 	DocumentFormattingParams,
 	DocumentRangeFormattingParams,
 	FoldingRange,
-	FoldingRangeParams
+	FoldingRangeParams,
+	DidChangeConfigurationParams
 } from 'vscode-languageserver/node';
 import {
 	TextDocument
@@ -32,6 +33,12 @@ const connection = createConnection(ProposedFeatures.all);
 
 // Create a simple text document manager.
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
+
+// Keep track of opened documents to distinguish initial open from subsequent changes
+const openedDocuments = new Set();
+
+let requireMod = true;
+
 
 let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
@@ -78,7 +85,7 @@ connection.onInitialize((params: InitializeParams) => {
 	return result;
 });
 
-connection.onInitialized(() => {
+connection.onInitialized( async () => {
 	if (hasConfigurationCapability) {
 		// Register for all configuration changes.
 		connection.client.register(DidChangeConfigurationNotification.type, undefined);
@@ -88,6 +95,11 @@ connection.onInitialized(() => {
 			connection.console.log('Workspace folder change event received.');
 		});
 	}
+	// Fetch initial configuration values when the extension starts
+	const initialConfig = await connection.workspace.getConfiguration('osc.language-server');
+	console.log(initialConfig);
+	requireMod = initialConfig.requireModifications == true;
+
 });
 /// Handle code action resoluation.  In future, we should split this apart based on the type of action
 connection.onCodeAction((params: CodeActionParams) => {
@@ -181,43 +193,53 @@ let globalSettings: ExampleSettings = defaultSettings;
 // Cache the settings of all open documents
 const documentSettings: Map<string, Thenable<ExampleSettings>> = new Map();
 
-connection.onDidChangeConfiguration(change => {
-	if (hasConfigurationCapability) {
-		// Reset all cached document settings
-		documentSettings.clear();
-	} else {
-		globalSettings = <ExampleSettings>(
-			(change.settings.languageServerExample || defaultSettings)
-		);
-	}
-
-});
-
 // Only keep settings for open documents
 documents.onDidClose(e => {
 	documentSettings.delete(e.document.uri);
 	connection.sendDiagnostics({ uri: e.document.uri, diagnostics: [] });
 });
 
-// The content of a text document has changed. This event is emitted
+// The content of a text document has changed.TextDocumentChangeEvent This event is emitted
 // when the text document first opened or when its content has changed.
 documents.onDidChangeContent(async (change) => {
 
 	// We only care about validating Objectscript Classes, anything will not be validated by us
 	if (change.document.languageId == 'objectscript-class' && documents.keys().indexOf(change.document.uri) != -1) {
-		let diagnostics = await validateObjClass(connection, change.document);
-		// Ensure the document is still open...
-		if (documents.keys().indexOf(change.document.uri) != -1) {
-			connection.sendDiagnostics({ uri: change.document.uri, diagnostics });
+		// If this uri is not contained, it is the first time the document is being opened and we may not want to process the diagnostics
+		if (openedDocuments.has(change.document.uri) || !requireMod){
+			let diagnostics = await validateObjClass(connection, change.document);
+			// Ensure the document is still open...
+			if (documents.keys().indexOf(change.document.uri) != -1) {
+				connection.sendDiagnostics({ uri: change.document.uri, diagnostics });
+			}
+		}else{
+			openedDocuments.add(change.document.uri)
 		}
+		
 	}
 });
+/// When a document is closed, mark it as closed for the requireModifications option.
+documents.onDidClose(async (change) => {
+	if (openedDocuments.has(change.document.uri)){
+		openedDocuments.delete(change.document.uri);
+	}
+})
 
 connection.onDidChangeWatchedFiles(_change => {
 	// Monitored files have change in VSCode
 	connection.console.log('We received a file change event');
 });
 
+// Handle configuration changes
+connection.onNotification('osc/didChangeConfiguration', (params) => {
+    const settings = params.settings;
+    if (settings && settings['osc.language-server']) {
+        const { requireModifications } = settings['osc.language-server'];
+		requireMod = requireModifications ?? true;
+        // Update your behavior based on the new configuration value
+        console.log(`requireMod configuration changed to: ${requireMod}`);
+    }
+});
 // Make the text document manager listen on the connection
 // for open, change and close text document events
 documents.listen(connection);
