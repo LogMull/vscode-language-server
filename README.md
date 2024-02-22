@@ -1,12 +1,37 @@
 # osc-language-server
 
-This VSCode extension is intended to be used alongside InterSystems Language Server for some additional features when working with Cache Objectscript.  This extension will add linting abilities to the embedded javascript within Cache Objectscript classes.  ESLint does the majority of the heavy lifting for the functionality.
+This VSCode extension is intended to be used alongside InterSystems Language Server for some additional features when working with Cache Objectscript.  This extension will add linting abilities to the embedded javascript within Cache Objectscript classes.  ESLint does the majority of the heavy lifting for the functionality. The rules for ESLint are not configurable.
 
 ## Functionality
-The extension will provide diagnostics as well as auto-fix capabilities for such diagnostics.
+### Linting
+* Provide diagnostics for code issues, but functional and style-only
+* Provide the ability to fix issues
+	* All in the current file
+	* All of a certain type in file
+	* All in selected range
+
+### Formatting
+* Use ESLint to handle styling javascript code
+* Style-only issues can be fixed by formatting the document with this plugin
+* XML Formatting from original VM Plugin
+
+### Other
+* Goto symbol with offset from original VM Plugin
 
 
-Ability to fix all fixable issues in a given class.  This is similar to vscode's autofix command.
+## Extension contributions
+This extension contributes the following
+
+### Settings
+* `osc.language-server.requireModifications`: Determines if diagnotics populate automatically or require a change in the file (default)
+
+
+### Commands
+* `osc.language-server.gotosymbol`: Goes to a symbol on the file with offset from start or end of file
+* `osc.language-server.fixAll`: Fixes all fixable problems in the current file.  Available in the context menu as well
+* `osc.language-server.fixSelection`: Fixes all fixable problems in the current selection.  Available in the context menu as well
+* `osc.language-server.fixTypes`: Fixes all fixable problems matching the selected type in the current file.  Available in the context menu as well
+
 
 ## External References
 XML Formatting https://www.npmjs.com/package/xml-js, both used as distributed and modified for our specific use case, permitted under the MIT Liscense.
