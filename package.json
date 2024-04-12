@@ -5,7 +5,7 @@
 	"description": "Finvi Language Server",
 	"author": "Logan Mullet",
 	"license": "MIT",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"repository": {
 		"type": "git",
 		"url": "git:https://github.com/LogMull/vscode-language-server.git"
@@ -39,6 +39,14 @@
 		"menus": {
 			"editor/context": [
 				{
+					"command": "osc.language-server.toggleAllLint",
+					"when": "vscode-objectscript.connectActive && editorLangId == objectscript-class",
+					"group": "1_modification@95"
+				},{
+					"command": "osc.language-server.toggleCurrentLint",
+					"when": "vscode-objectscript.connectActive && editorLangId == objectscript-class",
+					"group": "1_modification@96"
+				},{
 					"command": "osc.language-server.fixAll",
 					"when": "vscode-objectscript.connectActive && editorLangId == objectscript-class",
 					"group": "1_modification@97"
@@ -73,6 +81,13 @@
 			},{
 				"command": "osc.language-server.gotosymbol",
 				"title": "Go to symbol with offset"
+			}
+			,{
+				"command": "osc.language-server.toggleAllLint",
+				"title": "Toggle all linting"
+			},{
+				"command": "osc.language-server.toggleCurrentLint",
+				"title": "Toggle linting for current file"
 			}
 		]
 	},

@@ -31,6 +31,8 @@ This extension contributes the following
 * `osc.language-server.fixAll`: Fixes all fixable problems in the current file.  Available in the context menu as well
 * `osc.language-server.fixSelection`: Fixes all fixable problems in the current selection.  Available in the context menu as well
 * `osc.language-server.fixTypes`: Fixes all fixable problems matching the selected type in the current file.  Available in the context menu as well
+* `osc.language-server.toggleAllLint`: Toggles linting. Does not persist when Code is restarted
+* `osc.language-server.toggleCurrentLint`: Toggles linting for the current file.  Does not persist when Code is restarted
 
 
 ## External References

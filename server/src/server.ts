@@ -36,7 +36,8 @@ const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
 
 // Keep track of opened documents to distinguish initial open from subsequent changes
 const openedDocuments = new Set();
-
+const ignoredDocuments = new Set();
+let disableLinting = false;
 let requireMod = true;
 
 
@@ -67,7 +68,7 @@ connection.onInitialize((params: InitializeParams) => {
 			textDocumentSync: TextDocumentSyncKind.Incremental,
 			documentFormattingProvider: true,
 			documentRangeFormattingProvider: true,
-			foldingRangeProvider: true
+			foldingRangeProvider: true,
 			// Tell the client that this server supports code completion.
 			// completionProvider: {
 			// 	resolveProvider: false
@@ -205,6 +206,11 @@ documents.onDidChangeContent(async (change) => {
 
 	// We only care about validating Objectscript Classes, anything will not be validated by us
 	if (change.document.languageId == 'objectscript-class' && documents.keys().indexOf(change.document.uri) != -1) {
+		// If linting is disabled either globally or for the current file, clear diagnostics and stop
+		if(disableLinting || ignoredDocuments.has(change.document.uri)){
+			clearDiagnostics(change.document.uri)
+			return;
+		}
 		// If this uri is not contained, it is the first time the document is being opened and we may not want to process the diagnostics
 		if (openedDocuments.has(change.document.uri) || !requireMod){
 			let diagnostics = await validateObjClass(connection, change.document);
@@ -239,6 +245,26 @@ connection.onNotification('osc/didChangeConfiguration', (params) => {
         // Update your behavior based on the new configuration value
         console.log(`requireMod configuration changed to: ${requireMod}`);
     }
+});
+
+function clearDiagnostics(uri:string){
+	connection.sendDiagnostics({ uri, diagnostics:[] });
+}
+//connection.onNotification('osc/toggleLint', (toggleData:{type:string,uri?:string}) => {
+connection.onRequest('osc/toggleLint', (toggleData:{type:string,uri:string}) => {
+	if (toggleData.type=='all'){
+		disableLinting = !disableLinting;
+		if (disableLinting && toggleData.uri){
+			clearDiagnostics(toggleData.uri);
+		}
+	}else if (toggleData.type=='current'){
+		if (ignoredDocuments.has(toggleData.uri)){
+			ignoredDocuments.delete(toggleData.uri);
+		}else{
+			ignoredDocuments.add(toggleData.uri);
+			clearDiagnostics(toggleData.uri);
+		}
+	}
 });
 // Make the text document manager listen on the connection
 // for open, change and close text document events

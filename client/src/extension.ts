@@ -62,6 +62,26 @@ export function activate(context: ExtensionContext) {
 	commands.registerCommand('osc.language-server.gotosymbol', async () => {
 		handleGotoSymbol();
 	});
+	commands.registerCommand('osc.language-server.toggleAllLint', async () => {
+		const activeEditor = vscode.window.activeTextEditor;
+		const uri = activeEditor?activeEditor.document.uri.toString():'';
+		
+		client.sendRequest('osc/toggleLint',{'type':'all',uri:uri});
+	});
+	commands.registerCommand('osc.language-server.toggleCurrentLint', async () => {
+		const activeEditor = vscode.window.activeTextEditor;
+
+		if (activeEditor) {
+			// Get the URI of the currently opened file
+			const uri = activeEditor.document.uri;
+			client.sendRequest('osc/toggleLint',{'type':'current', 'uri':uri.toString()});
+			
+
+			// Now 'filePath' represents the currently opened file
+		} 
+		
+
+	});
 	    // Update the configuration when it changes
 	const disposable = vscode.workspace.onDidChangeConfiguration(() => {
 		let requireModifications = vscode.workspace.getConfiguration('osc.language-server').get('requireModifications', true);
