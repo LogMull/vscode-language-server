@@ -43,7 +43,9 @@ export async function validateObjClass(connection: _Connection, document: TextDo
 	// Validate teh comment section first.  It is less important, but can sometimes get pushed out of scope if there are a LOT of problems
 	let classSymbols: any[] = await connection.sendRequest('osc/getSymbols', { uri: document.uri, type: 'Class' });
 	// Class symbol is currently used only to validate header comments
-	promiseArray.push(validateClassHeaderComment(classSymbols[0].location, document));
+	let rangeInfo = classSymbols[0].location.range;
+	let classStartPosition:Position = rangeInfo[0] as Position;
+	promiseArray.push(validateClassHeaderComment(classStartPosition, document));
 	// Validate JS symbols
 	promiseArray.push(validateJSSymbols(document, symbols));
 
@@ -235,10 +237,10 @@ function checkRuleExceptions(ruleId: string = "", document: TextDocument, start:
 /// Author, Date, and Copyright are present
 /// All <TR> have matching, closing </TR>
 /// No more than 10 change comments exist
-function validateClassHeaderComment(classLocation: Location, document: TextDocument): Promise<Diagnostic[]> {
+function validateClassHeaderComment(classStartPosition: Position, document: TextDocument): Promise<Diagnostic[]> {
 	let diagnostics: Diagnostic[] = [];
 	let symbolStart = Position.create(0, 0);
-	let commentRange = Range.create(symbolStart, classLocation.range[0]);
+	let commentRange = Range.create(symbolStart, classStartPosition);
 
 	let commentStr = document.getText(commentRange);
 	let commentStartLine = 0;
@@ -246,7 +248,7 @@ function validateClassHeaderComment(classLocation: Location, document: TextDocum
 	if (commentStr.startsWith('Include')) {
 		commentStartLine = 2
 		symbolStart = Position.create(commentStartLine, 0);
-		commentRange = Range.create(symbolStart, classLocation.range[0]);
+		commentRange = Range.create(symbolStart, classStartPosition);
 		commentStr = document.getText(commentRange);
 	}
 
