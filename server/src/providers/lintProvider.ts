@@ -370,7 +370,7 @@ function validateClassHeaderComment(classStartPosition: Position, document: Text
 			let diagData: DiagData = {
 				uri: document.uri
 			}
-			const commentRange = Range.create(Position.create(start + commentStartLine + 1, 0), Position.create(end + commentStartLine + 2, 0));
+			const commentRange = Range.create(Position.create(start + commentStartLine, 0), Position.create(end + commentStartLine + 1, 0));
 			diagData.fixMessage = 'Remove extra change comments';
 			diagData.fixRange = commentRange;
 			diagData.fixText = '';
