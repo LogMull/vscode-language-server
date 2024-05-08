@@ -69,6 +69,10 @@ export async function getFileSymbols(uri?: string, symbolType?: String, range?: 
 	// Get a list of all of the symbols for the current document
 	const symbols = await getSymbols(docUri);
 	let array = symbols;
+	// If getting the entire class (likely for the header comment) return the entire symbol tree
+	if (symbolType=='Class'){
+		return Promise.resolve(array);
+	}
 	if (symbols[0].kind == 4) { // kind==4 means class, so the entries will be nested inside it's children
 		array = symbols[0].children
 	}

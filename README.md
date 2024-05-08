@@ -9,6 +9,7 @@ This VSCode extension is intended to be used alongside InterSystems Language Ser
 	* All in the current file
 	* All of a certain type in file
 	* All in selected range
+* OSC Class Header comment validation
 
 ### Formatting
 * Use ESLint to handle styling javascript code

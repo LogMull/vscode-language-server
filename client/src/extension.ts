@@ -70,17 +70,11 @@ export function activate(context: ExtensionContext) {
 	});
 	commands.registerCommand('osc.language-server.toggleCurrentLint', async () => {
 		const activeEditor = vscode.window.activeTextEditor;
-
 		if (activeEditor) {
 			// Get the URI of the currently opened file
 			const uri = activeEditor.document.uri;
 			client.sendRequest('osc/toggleLint',{'type':'current', 'uri':uri.toString()});
-			
-
-			// Now 'filePath' represents the currently opened file
 		} 
-		
-
 	});
 	    // Update the configuration when it changes
 	const disposable = vscode.workspace.onDidChangeConfiguration(() => {

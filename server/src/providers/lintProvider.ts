@@ -5,6 +5,7 @@ import {
 	Range,
 	Position,
 	DiagnosticSeverity,
+	Location,
 } from 'vscode-languageserver/node';
 import {
 	TextDocument
@@ -30,14 +31,24 @@ var elapsed_time = function (note: string, start: any) {
 	console.log(process.hrtime(start)[0] + " s, " + elapsed.toFixed(precision) + " ms - " + note); // print message + time
 
 }
+export interface DiagData { uri: string, fixText?: string, fixRange?: Range, fixMessage?: string, origFix?: any }
+
 /// Validate an objectscript-class file.  Currently only supports clientMethods
 export async function validateObjClass(connection: _Connection, document: TextDocument): Promise<Diagnostic[]> {
 	const symbols: any[] = await connection.sendRequest('osc/getSymbols', { uri: document.uri, type: 'ClientMethod' });
 
 	let start = process.hrtime()
 	let ruleMap = new Map();
-	let diagnostics = await validateJSSymbols(document, symbols)
+	let promiseArray: Promise<Diagnostic[]>[] = [];
+	// Validate teh comment section first.  It is less important, but can sometimes get pushed out of scope if there are a LOT of problems
+	let classSymbols: any[] = await connection.sendRequest('osc/getSymbols', { uri: document.uri, type: 'Class' });
+	// Class symbol is currently used only to validate header comments
+	promiseArray.push(validateClassHeaderComment(classSymbols[0].location, document));
+	// Validate JS symbols
+	promiseArray.push(validateJSSymbols(document, symbols));
 
+	let allDiag = await Promise.all(promiseArray);
+	let diagnostics = allDiag.flat()
 	elapsed_time("Linting Time - ", start)
 	for (const diag of diagnostics) {
 		let currentValue = ruleMap.get(diag.code);
@@ -80,7 +91,7 @@ async function validateSingleJSSymbol(symbol: any, document: TextDocument): Prom
 		let fixEnd = fixStart
 		let fixRange = Range.create(fixStart, fixEnd);
 
-		let diagData: { uri: string, fixText?: string, fixRange?: Range, fixMessage?: string, origFix?: any } = {
+		let diagData: DiagData = {
 			uri: document.uri
 		}
 		let fixLines: string[] = [];
@@ -133,7 +144,7 @@ async function validateSingleJSSymbol(symbol: any, document: TextDocument): Prom
 			continue;
 		}
 
-		let diagData: { uri: string, fixText?: string, fixRange?: Range, fixMessage?: string, origFix?: any } = {
+		let diagData: DiagData = {
 			uri: document.uri
 		}
 		// We now have the start + end of the diagnostic information, which will be used for styling + alerting the user
@@ -216,5 +227,187 @@ function checkRuleExceptions(ruleId: string = "", document: TextDocument, start:
 		returnResult.showFix = false;
 	}
 	return returnResult;
+
+}
+
+/// Perform validation against the header comment of a class.
+/// This will validate the following:
+/// Author, Date, and Copyright are present
+/// All <TR> have matching, closing </TR>
+/// No more than 10 change comments exist
+function validateClassHeaderComment(classLocation: Location, document: TextDocument): Promise<Diagnostic[]> {
+	let diagnostics: Diagnostic[] = [];
+	let symbolStart = Position.create(0, 0);
+	let commentRange = Range.create(symbolStart, classLocation.range[0]);
+
+	let commentStr = document.getText(commentRange);
+	let commentStartLine = 0;
+	// If the class starts with 'Include' then we need to offset expectations
+	if (commentStr.startsWith('Include')) {
+		commentStartLine = 2
+		symbolStart = Position.create(commentStartLine, 0);
+		commentRange = Range.create(symbolStart, classLocation.range[0]);
+		commentStr = document.getText(commentRange);
+	}
+
+
+	// If the comment is entirely missing, add a default header.
+	if (commentStr.trim().length == 0) {
+		const commentRange = Range.create(symbolStart, symbolStart);
+		const fixRange = commentRange;
+		let diagData: DiagData = {
+			uri: document.uri
+		}
+		diagData.fixMessage = 'Add header comment';
+		diagData.fixRange = fixRange;
+		diagData.fixText = getDefaultHeaderComment();
+		diagnostics.push({
+			code: 'osc-header-missing',
+			message: 'Missing class header comment',
+			range: commentRange,
+			severity: DiagnosticSeverity.Error,
+			source: 'Class Header Comment',
+			data: diagData
+		});
+
+		return Promise.resolve(diagnostics);
+	}
+	const commentArr = commentStr.split('\n');
+
+
+	// Check if this header has an include line at the start, if so, the starting line for the diagnostics info will be handled differently. 
+	// Do some simple regex checks for the author, date and copyright
+	const authResult = commentStr.match(/\/\/\/\s*Author:\s*(\w+)(?:<br>)?/m);
+	if (!authResult) {
+		let diagData: DiagData = {
+			uri: document.uri
+		}
+		diagnostics.push({
+			code: 'osc-header-missing-author',
+			message: 'Missing class author',
+			range: Range.create(symbolStart, symbolStart),
+			severity: DiagnosticSeverity.Warning,
+			source: 'Class Header Comment',
+			data: diagData
+		});
+	}
+
+	// Check for date
+	const dateResult = commentStr.match(/\/\/\/\s*Date:\s*(\w+)(?:<br>)?/m);
+	if (!dateResult) {
+		let diagData: DiagData = {
+			uri: document.uri
+		}
+		diagnostics.push({
+			code: 'osc-header-missing-date',
+			message: 'Missing class creation date',
+			range: Range.create(symbolStart, symbolStart),
+			severity: DiagnosticSeverity.Warning,
+			source: 'Class Header Comment',
+			data: diagData
+		});
+	}
+	// Check for copyright
+	const copyResult = commentStr.match(/\/\/\/\s*Copyright/m);
+	if (!copyResult) {
+		let diagData: DiagData = {
+			uri: document.uri
+		}
+		diagnostics.push({
+			code: 'osc-header-missing-copyright',
+			message: 'Missing class copyright',
+			range: Range.create(symbolStart, symbolStart),
+			severity: DiagnosticSeverity.Error,
+			source: 'Class Header Comment',
+			data: diagData
+		});
+	}
+	// Validate the change comments
+	const commentResult = commentStr.match(/\/\/\/ <TR bgcolor='#ffffff'>/g);
+	if (commentResult) {
+		// Since we know we have too many comments, in order to make removing them easier, iterate line by line.
+		let count = 0;
+		let trOpen = true;
+		let start = 0;
+		let end = 0;
+		for (const line in commentArr) {
+			const str = commentArr[line];
+			const lineInt = parseInt(line);
+			if (str.includes("/// <TR bgcolor='#ffffff'>")) {
+				if (trOpen) {
+					let diagData: DiagData = {
+						uri: document.uri
+					}
+					// Add a diagnostic for missing the ending
+					const commentRange = Range.create(Position.create(lineInt + commentStartLine - 1, 0), Position.create(lineInt + commentStartLine - 1, commentArr[lineInt + commentStartLine - 1].length));
+					const fixRange = Range.create(Position.create(lineInt + commentStartLine, 0), Position.create(lineInt + commentStartLine, 0));
+					diagData.fixMessage = 'Add missing end tr tag';
+					diagData.fixRange = fixRange;
+					diagData.fixText = '/// </TR>\n';
+					diagnostics.push({
+						code: 'osc-header-comment-missing-tr',
+						message: 'Opening TR before ending previous',
+						range: commentRange,
+						severity: DiagnosticSeverity.Warning,
+						source: 'Class Header Comment',
+						data: diagData
+					});
+				}
+				count++;
+				trOpen = true;
+				if (count > 10 && !start) {
+					start = lineInt;
+				}
+			} else if (str.includes('/// </TR>')) {
+				trOpen = false;
+				end = lineInt;// Keep track of the last line
+			}
+		}
+		// Validate the number of comments
+		if (commentResult.length > 10) {
+			let diagData: DiagData = {
+				uri: document.uri
+			}
+			const commentRange = Range.create(Position.create(start + commentStartLine + 1, 0), Position.create(end + commentStartLine + 2, 0));
+			diagData.fixMessage = 'Remove extra change comments';
+			diagData.fixRange = commentRange;
+			diagData.fixText = '';
+			diagnostics.push({
+				code: 'osc-header-comment-count',
+				message: 'Too many change comments, max of 10',
+				range: commentRange,
+				severity: DiagnosticSeverity.Warning,
+				source: 'Class Header Comment',
+				data: diagData
+			});
+		}
+
+	}
+	return Promise.resolve(diagnostics);
+
+}
+/// Simple helper to get the default header comment.  Put here soley to avoid bloat above.
+function getDefaultHeaderComment(): string {
+	return "/// <p>\n" +
+		"/// Brief overview of class and its purpose.\n" +
+		"/// </p>\n" +
+		"/// Author: yourname<br>\n" +
+		"/// Date: today<br>\n" +
+		"/// Copyright &copy; Ontario Systems, LLC.  All rights reserved.<br>\n" +
+		"/// <H3>CLASS REVISIONS</H3>\n" +
+		"/// <TABLE border='1' cellpadding='5' cellspacing='0' style='border-collapse: collapse' bordercolor='#111111' width='100%' bgcolor='#DDC5A4'>\n" +
+		"/// <TR>\n" +
+		"/// 	<TD width='20%'><B>DATE</B></TD>\n" +
+		"/// 	<TD width='15%'><B>USER</B></TD>\n" +
+		"/// 	<TD width='15%'><B>TASK</B></TD>\n" +
+		"/// 	<TD width='50%'><B>MODIFICATION</B></TD>\n" +
+		"/// </TR>\n" +
+		"/// <TR bgcolor='#ffffff'>\n" +
+		"/// 	<TD>today</TD>\n" +
+		"/// 	<TD>yourname</TD>\n" +
+		"/// 	<TD>jira-number</TD>\n" +
+		"/// 	<TD>Created.</TD>\n" +
+		"/// </TR>\n" +
+		"/// </TABLE>\n"
 
 }
