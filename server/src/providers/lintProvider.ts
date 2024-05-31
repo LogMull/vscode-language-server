@@ -28,11 +28,12 @@ const eslint = new ESLint({
 var elapsed_time = function (note: string, start: any) {
 	var precision = 3; // 3 decimal places
 	var elapsed = process.hrtime(start)[1] / 1000000; // divide by a million to get nano to milli
-	console.log(process.hrtime(start)[0] + " s, " + elapsed.toFixed(precision) + " ms - " + note); // print message + time
+	//console.log(process.hrtime(start)[0] + " s, " + elapsed.toFixed(precision) + " ms - " + note); // print message + time
 
 }
-export interface DiagData { uri: string, fixText?: string, fixRange?: Range, fixMessage?: string, origFix?: any }
+export interface DiagData { uri: string, fixText?: string, fixRange?: Range, fixMessage?: string, autoFix?: boolean }
 
+type validatorFunction =(document: TextDocument, symbols: any[]) => Promise<Diagnostic[]>
 /// Validate an objectscript-class file.  Currently only supports clientMethods
 export async function validateObjClass(connection: _Connection, document: TextDocument): Promise<Diagnostic[]> {
 	const symbols: any[] = await connection.sendRequest('osc/getSymbols', { uri: document.uri, type: 'ClientMethod' });
@@ -45,19 +46,19 @@ export async function validateObjClass(connection: _Connection, document: TextDo
 	// Class symbol is currently used only to validate header comments
 	let rangeInfo = classSymbols[0].location.range;
 	let classStartPosition:Position = rangeInfo[0] as Position;
-	promiseArray.push(validateClassHeaderComment(classStartPosition, document));
+	// promiseArray.push(validateClassHeaderComment(classStartPosition, document)); LCM
 	// Validate JS symbols
-	promiseArray.push(validateJSSymbols(document, symbols));
-
-	let allDiag = await Promise.all(promiseArray);
-	let diagnostics = allDiag.flat()
+	// promiseArray.push(validateJSSymbols(document, symbols)); // LCM
+	const classMethodSymbols:any[] =  await connection.sendRequest('osc/getSymbols', { uri: document.uri, type: 'ClassMethod' });
+	promiseArray.push(validateSingleSymbol(document, classMethodSymbols,'classMethod')); // LCM
+	let diagnostics = (await Promise.all(promiseArray)).flat()
 	elapsed_time("Linting Time - ", start)
 	for (const diag of diagnostics) {
 		let currentValue = ruleMap.get(diag.code);
 		if (!currentValue) currentValue = 0
 		ruleMap.set(diag.code, currentValue + 1);
 	}
-	console.log(ruleMap);
+	//console.log(ruleMap);
 	return Promise.resolve(
 		diagnostics
 	);
@@ -156,13 +157,15 @@ async function validateSingleJSSymbol(symbol: any, document: TextDocument): Prom
 			const fixStartPos = message.fix.range[0];
 			const fixEndPos = message.fix.range[1];
 
+			/*
 			let start = getPosition(cleanResults.methodText, fixStartPos);
 			let end = getPosition(cleanResults.methodText, fixEndPos);
 			// start/end should contain 0-based line/column offsets
 			let fixStart = Position.create(cleanResults.range.start.line + start.line + 1, cleanResults.range.start.character + start.column);
 			let fixEnd = Position.create(cleanResults.range.start.line + end.line + 1, end.column);
 			let fixRange = Range.create(fixStart, fixEnd);
-
+			*/
+			let fixRange = textPosToRange(cleanResults,fixStartPos,fixEndPos)
 			diagData.fixText = message.fix.text;
 			diagData.fixRange = fixRange;
 			diagData.fixMessage = `Apply fix for '${message.ruleId}'`
@@ -194,6 +197,89 @@ async function validateSingleJSSymbol(symbol: any, document: TextDocument): Prom
 	return Promise.resolve(
 		diagnostics
 	)
+}
+
+/// This method creates promises to validate individual javascript symbols.
+async function validateSingleSymbol(document: TextDocument, symbols: any[],type:string): Promise<Diagnostic[]> {
+	let promiseArray: Promise<Diagnostic[]>[] = [];
+	for (let symbol of symbols) {
+		if (type=='classMethod'){
+			promiseArray.push(validateSingleServerSymbol(symbol, document))
+		}
+		
+	}
+	// Wait for all promises to reslove
+	let results = await Promise.all(promiseArray);
+
+	return Promise.resolve(results.flat());
+
+}
+
+/// Validate an individual symbol. This will crea teh appropriate diagnostics for any issues
+async function validateSingleServerSymbol(symbol: any, document: TextDocument): Promise<Diagnostic[]> {
+	let diagnostics: Diagnostic[] = [];
+	let symbolStart = Position.create(symbol.location.range[0].line, symbol.location.range[0].character)
+	let symbolEnd = Position.create(symbol.location.range[1].line, symbol.location.range[1].character)
+	let symbolRange = Range.create(symbolStart, symbolEnd);
+	let cleanResults: CleanMethodResults = getCleanMethod(symbolRange, document,'ClassMethod'); // LCM server is probably a bad name
+	if (!cleanResults.isOk) {
+		console.log('Failed to get method text for ' + symbol.name)
+		return diagnostics;
+	}
+	const comments = cleanResults.comment.split('\n');
+	// First thing to verify - server side methods should begin with a captial letter
+	if (cleanResults.methodName[0] != cleanResults.methodName[0].toUpperCase()){
+		let fixStart = Position.create(cleanResults.range.start.line + comments.length-1, 12);
+		let fixEnd = Position.create(cleanResults.range.start.line + comments.length-1, 13);
+		let fixRange = Range.create(fixStart, fixEnd);
+		let diagRange = Range.create(fixStart, fixStart);
+
+		let diagData: DiagData = {
+			uri: document.uri,
+			fixText: cleanResults.methodName[0].toUpperCase(),
+			fixRange: fixRange,
+			fixMessage: `Capitalize first letter`
+		}
+		let diag: Diagnostic = {
+			code: 'osc-method-case',
+			message: 'Server methods should be pascal case',
+			range: diagRange,
+			severity: DiagnosticSeverity.Warning,
+			source: cleanResults.methodName,
+			data: diagData
+		}
+		diagnostics.push(diag);
+	}
+	
+	validateComments(cleanResults,document,diagnostics);
+	validateConditionals(cleanResults,document,diagnostics);
+
+	
+
+	
+	const lines = cleanResults.methodText.split('\n');
+
+	// ESLint is not well suited to parse objectscript code, so instead we will do it ourselves (yay)
+	// We can likely do it more easily if we were to tokenize the document, similar to how the ISC LS does it, but for this first, basic pass use regex line by line :)
+
+	return Promise.resolve(
+		diagnostics
+	)
+}
+
+function isAlphanumeric(char: string): boolean {
+    const code = char.charCodeAt(0);
+    return (code > 47 && code < 58) || // numeric (0-9)
+        (code > 64 && code < 91) || // upper alpha (A-Z)
+        (code > 96 && code < 123); // lower alpha (a-z)
+}
+function textPosToRange(cleanResults:CleanMethodResults,startPos:number,endPos:number):Range{
+	let start = getPosition(cleanResults.methodText, startPos);
+	let end = getPosition(cleanResults.methodText, endPos);
+	// start/end should contain 0-based line/column offsets
+	let fixStart = Position.create(cleanResults.range.start.line + start.line + 1, cleanResults.range.start.character + start.column);
+	let fixEnd = Position.create(cleanResults.range.start.line + end.line + 1, end.column);
+	return Range.create(fixStart, fixEnd);
 }
 /// Within the given text string, return a 0-based line and column that matches the original substring length.
 /// Normally, using positionAt would achieve this, but because this text is a subset of the document, that does not work.
@@ -413,3 +499,292 @@ function getDefaultHeaderComment(): string {
 		"/// </TABLE>\n"
 
 }
+
+
+function validateComments(cleanResults:CleanMethodResults,document:TextDocument,diagnostics:Diagnostic[]){
+	let inComment=false;
+	let commentStyle='';
+	let commentMismatch=false;
+	//const commentStyleRegex = /^\s*(\/\/|;|#;)/gm
+	const commentStyleRegex = /^(?:\s*)(\/\/|;|#;)/gmd
+	const methodText = cleanResults.methodText;
+	// Match the comment style against the entire method. We only need to check each line if there is a difference
+	let commentMatches = methodText.matchAll(commentStyleRegex)
+	if (commentMatches){
+		//commentStyle = commentMatches[0].trim();
+		// Due to how .match works, the white space will be included for every match, so strip it off here to get the actual style
+		for (let match of commentMatches){
+			if (!match.indices) continue; // TS gets mad if we don't do this.  Passing 'd' to the regex forces the indices to be present
+			// If the comment style hasn't been set yet, get it now
+			if (commentStyle==''){
+				commentStyle=match[1];
+			}
+			// If this comment does not match the style, create a diagnostic for it
+			if (match[1]!=commentStyle){
+				let commentRange = textPosToRange(cleanResults,match.indices[1][0],match.indices[1][1]);
+				let diag: Diagnostic = {
+					code: 'osc-comment-style',
+					message: 'Inconsistent Comment Style',
+					range: commentRange,
+					severity: DiagnosticSeverity.Warning,
+					source: cleanResults.methodName,
+					data:  {
+						uri: document.uri,
+						fixText: commentStyle,
+						fixRange: commentRange,
+						fixMessage: `Use consistent comment style`
+					} as DiagData
+				}
+				diagnostics.push(diag);
+				}
+			
+			// Since we are already matching comments here, check if the next character is not a space.
+			if (![' ','\t'].includes(cleanResults.methodText[match.indices[1][1]]) ){
+				let commentRange = textPosToRange(cleanResults,match.indices[1][1],match.indices[1][1]);
+				let diag: Diagnostic = {
+					code: 'osc-spaced-comment',
+					message: `Expected space or tab after start of comment`,
+					range: commentRange,
+					severity: DiagnosticSeverity.Warning,
+					source: cleanResults.methodName,
+					data:  {
+						uri: document.uri,
+						fixText: ' ',
+						fixRange: commentRange,
+						fixMessage: `Add Space`
+					} as DiagData
+				}
+				diagnostics.push(diag);
+				}
+		}
+		
+	}
+}
+
+function validateConditionals(cleanResults:CleanMethodResults,document:TextDocument,diagnostics:Diagnostic[]){
+	// Now check for 'if' statements that we want to validate
+	// Matches start of line, not starting with a comment, optionally containing E or ELSE, spaces then I or IF, capturing everything before the last {
+	//const ifRegex = /^\s*(?!(\/\/|;|#;))[ \t]*(?:E|ELSE)?I(?:F)?(.*)s*{/dgmi
+	const ifRegex = /^\s*(?!(\/\/|;|#;))(?:})?[ \t]*(?:E|ELSE)?I(?:F)?(.*)s*{/dgmi
+
+	const methodText = cleanResults.methodText;
+	const ifMatches = methodText.matchAll(ifRegex);
+
+	for (const match of ifMatches){
+		if (!match.indices) continue; // TS gets mad if we don't do this.  Passing 'd' to the regex forces the indices to be present
+		
+		const matchText = match[2];
+		let legacyConditionalFound=false;
+		// First, check for any ! character that is not in quotes.
+		// if (text.includes('!') || text.includes(',')){
+		let inQuotes=false;
+		let parenCount=0;
+		let funcCount=0;
+		let parenTypeStack = []; // 1 - function, 2 - logical group
+		// Replace all escaped quotes, we don't care about those. Use 11 so that the original length is retained.
+		let text = matchText.replaceAll('""','11');
+		for (let pos=0;pos<text.length;pos++){
+			const char = text[pos];
+			// Check for quotes
+			if (char=='"') {
+				inQuotes = !inQuotes;
+			}
+			if (inQuotes) continue; // If this is a quoted string, we really don't care about anything inside of it.
+			// Check for a bang, any instance of this not in a quote is invalid.
+			if (char=='!'){
+				const bangIndex = pos;
+				const bangPos = match.indices[2][0]+bangIndex;
+				// Include spacing around the operator as a part of the fix.
+				let fixText =(text[bangIndex-1]!=' '?' ':'') +'||'+(text[bangIndex+1]!=' '?' ':'');
+				let range = textPosToRange(cleanResults,bangPos,bangPos+1);
+				let diag: Diagnostic = {
+					code: 'osc-logical-operators',
+					message: 'Use || Operator over !',
+					range: range,
+					severity: DiagnosticSeverity.Warning,
+					source: cleanResults.methodName,
+					data:  {
+						uri: document.uri,
+						fixText: fixText,
+						fixRange: range,
+						fixMessage:'Use || Operator'
+					} as DiagData
+				}
+				diagnostics.push(diag);
+				legacyConditionalFound = true;
+			}
+			// If opening paren is found, differentiate between logical groupings and function calls.
+			// Function parens will always be preceeded by an alphanumeric character.
+			else if (char=='(' ){
+				if (isAlphanumeric(text.charAt(pos-1))){
+					funcCount++;
+					parenTypeStack.push('1');
+				}else{
+					parenCount++;
+					parenTypeStack.push('2');
+				}
+			}
+			// Closing paren could either be a logical or function paren.
+			else if (char==')'){
+				const lastType = parenTypeStack.pop();
+				if (lastType=='1'){
+					funcCount--;
+				}else{
+					parenCount--;
+				}
+			}
+			else if (char==','){
+				// We have encountered a comma.
+
+				// If the function count is 0, then this comma is not in a function and is invalid.
+				if (funcCount==0 || parenTypeStack.at(-1)=='2'){
+					// Include spacing around the operator as a part of the fix.
+					const commaPos = match.indices[2][0]+pos;
+					let fixText =(text[commaPos-1]!=' '?' ':'') +'&&'+(text[commaPos+1]!=' '?' ':'');
+					let range = textPosToRange(cleanResults,commaPos,commaPos+1);
+					let diag: Diagnostic = {
+						code: 'osc-logical-operators',
+						message: 'Use && Operator over ,',
+						range: range,
+						severity: DiagnosticSeverity.Warning,
+						source: cleanResults.methodName,
+						data:  {
+							uri: document.uri,
+							fixText: fixText,
+							fixRange: range,
+							fixMessage:'Use && Operator'
+						} as DiagData
+					}
+					diagnostics.push(diag);
+					legacyConditionalFound = true;
+				}
+			}
+
+			// At this point, we can check for correct parenthesizing 
+			if ((char=='|' && text.charAt(pos+1)=='|') || (char=='&' && text.charAt(pos+1)=='&')){
+				// Check the character to the right, it should be either a space or (
+				let nextChar = text.charAt(pos+2);
+				let hasRightSpace=false;
+				if (nextChar==' ' ){
+					hasRightSpace=true;
+					nextChar = text.charAt(pos+3);
+				}
+				// If the next character is not a paren, this is invalid
+				if (nextChar!='('){
+
+				}
+				
+				// Possible approach - If the NEXT character is not '(' or ' (', the entire next 'statement' is invalid.  Statement would be everything until the next ||/&& at the same paren level
+				// If the PREV char is not ) or ') ', then the previous statement is invalid, statement would be everything before until the next non-funciton ( or ||/&& at the same paren level
+					// Would also need to ensure somehow that the paren is not part of the end of a function call.
+
+					// Start simple.  Ignore possibility of functions and just check for variables/literals
+					// Then get the right side working with functions / nesting
+					// then get the left side
+
+				pos++; // Skip the next character, we know what it is.
+			}
+			
+		} // End Character iteration
+		//}
+		// Ensure that the outer level is wrapped in parenthesis
+		checkConditionalParens(cleanResults,document,diagnostics,text.replaceAll(/(".*?")/g,(match:string) => '1'.repeat(match.length)),match.indices[2][0],true)
+			// Include spacing around the operator as a part of the fix.
+			
+			
+
+		// If we found a legacy conditional in this expression, do not bother with 
+		
+	}
+}
+
+function checkConditionalParens(cleanResults:CleanMethodResults,document:TextDocument,diagnostics:Diagnostic[],conditionalText:String,startPos:number,allowFix:boolean=false){
+	//const text = conditionalText.trim();
+	// Trim the text for easier matching, but also keep tracking of the padding for use when recursing.
+	const originalLength = conditionalText.length;
+	let text = conditionalText.trimStart();
+	const frontPadLength = originalLength - text.length;
+	text  = text.trimEnd();
+	const endPadLength = originalLength - frontPadLength - text.length;
+	
+	//const text = conditionalText
+	let parenResults = text.match(/^\((.*)\)$/);
+	// If there is a not a match for this simple regex, the conditions are absolutely not wrapped.
+	// simiarly, if thre are unwrapped operators, it is not wrapped.  Technically only the later check needs done, but the match is helpful for below
+	if (!parenResults || findFirstLogicalOperatorOutsideParentheses(text)!=-1){
+		let fixText =` (${text}) `;
+		// The below two lines do not work, but the idea is to only include the space 
+		if (cleanResults.methodText.charAt(startPos-1)=='(') fixText = fixText.trimStart();
+		if (cleanResults.methodText.charAt(startPos+conditionalText.length)==')') fixText = fixText.trimEnd();
+		let range = textPosToRange(cleanResults,startPos,startPos+conditionalText.length);
+		let fixRange = textPosToRange(cleanResults,startPos,startPos+fixText.length);
+		let diag: Diagnostic = {
+			code: 'osc-conditional-parenthesis',
+			message: 'Wrap conditions in ()',
+			range: range,
+			severity: DiagnosticSeverity.Warning,
+			source: cleanResults.methodName,
+			data:  {
+				uri: document.uri,
+				fixText: fixText,
+				fixRange: range,
+				fixMessage:'Wrap condition in ()'
+			} as DiagData
+		}
+		// We may not always want to allow a fix automatically, sometimes it may be ambiguous.
+		if (!allowFix){
+			diag.data.autoFix=false;
+		}
+		diagnostics.push(diag);
+	}
+		// If we have already found one level that needs parenthesis, don't
+	else{
+		
+		// this level was good, continue deeper
+		const conditionOriginal = parenResults[1];
+		let workingConditional = conditionOriginal;
+		// At this point, the outermost parenthesis have been taken off, ((1) || (2)) => (1) || (2)
+		let idx = findFirstLogicalOperatorOutsideParentheses(workingConditional);
+		if (idx != -1){
+			let offset=0;
+			// idx indicates the index of the FIRST character in || or &&
+			const left = workingConditional.substring(0,idx);
+			// Provide the starting position + any previously stripped padding. Add 1 to account for the ( preceeding this level.
+			checkConditionalParens(cleanResults,document,diagnostics,left,startPos+frontPadLength+1);
+			const right = workingConditional.substring(idx+2);
+			// check the right side of the conditional. offset of 3 to account for the operator + the preceeding (
+			checkConditionalParens(cleanResults,document,diagnostics,right,startPos+idx+3+frontPadLength);
+			
+
+			workingConditional = workingConditional.substring(idx+2).trimEnd();
+			
+			idx = findFirstLogicalOperatorOutsideParentheses(workingConditional);
+			//const right 
+		}
+		console.log(); // May need to check what is left in working at this point.
+
+	}
+		
+}
+
+	// Now we need to check both the left and the right sides of the primary operator, if there is one
+function findFirstLogicalOperatorOutsideParentheses(input: string): number {
+    let openParentheses = 0;
+	for (let i = 0; i < input.length - 1; i++) {
+        if (input[i] === '(') {
+            openParentheses++;
+        } else if (input[i] === ')') {
+            openParentheses--;
+        } else if (openParentheses === 0) {
+            if (input[i] === '|' && input.charAt(i+1) === '|') {
+                return i;
+            }
+            if (input[i] === '&' && input.charAt(i+1) === '&') {
+                return i;
+            }
+        }
+    }
+    return -1; // If no unwrapped || or && found
+}
+
+	
