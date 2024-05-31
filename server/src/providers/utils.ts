@@ -4,6 +4,8 @@ import { Position, Range } from 'vscode-languageserver/node'
 const jsMethodRegex = new RegExp("^ClientMethod.*language\\s*=\\s*javascript", "im");
 const jsMethodBreakdown = /ClientMethod\s*(\w+)\(([\w,\W]*)\)\s*(\[.*\])\n/i
 
+const classMethodRegex = /^ClassMethod/im;
+const classMethodBreakdown= /ClassMethod\s*(\w+)\((.*)\)\s*(\[.*\])?\n/i
 export interface CleanMethodResults {
 	isOk: boolean,
 	range: Range,
@@ -27,16 +29,17 @@ export interface CleanMethodResults {
 // }
 
 
-export function getCleanMethod(originalRange: Range, document: TextDocument): CleanMethodResults {
+export function getCleanMethod(originalRange: Range, document: TextDocument,type:string='function'): CleanMethodResults {
 
 	let returnObj = { isOk: false, comment: '' } as CleanMethodResults;
 	let wholeNode = document.getText(originalRange);
 	let lines = wholeNode.split('\n');
 	let methodOffset = 0;
+	const methodRegex = (type=='function'?jsMethodRegex:classMethodRegex)
 	// Find where the line starts with ClientMethod and is javascript
 	for (let i = 0; i < lines.length; i++) {
 		let line = lines[i];
-		if (jsMethodRegex.test(line)) {
+		if (methodRegex.test(line)) {
 			methodOffset = i;
 			break;
 		}
@@ -52,7 +55,8 @@ export function getCleanMethod(originalRange: Range, document: TextDocument): Cl
 	let methodText = document.getText(newRange);
 
 	// method text here will contain CLientMethod XXXX() [language=javascript]
-	let methodParts = methodText.match(jsMethodBreakdown);
+	const breadkownRegex = (type=='function'?jsMethodBreakdown:classMethodBreakdown)
+	let methodParts = methodText.match(breadkownRegex);
 	if (!methodParts) {
 		return returnObj;
 	}
@@ -60,7 +64,7 @@ export function getCleanMethod(originalRange: Range, document: TextDocument): Cl
 	const params = methodParts[2]
 	const squarebrackets = methodParts[3]
 
-	methodText = methodText.replace(jsMethodBreakdown, "function $1($2)")
+	methodText = methodText.replace(breadkownRegex, type+" $1($2)"); // LCM this may be different when doing serv-erside validation. TBD
 
 	returnObj.methodText = methodText;
 	returnObj.isOk = true;
