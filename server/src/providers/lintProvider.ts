@@ -46,9 +46,9 @@ export async function validateObjClass(connection: _Connection, document: TextDo
 	// Class symbol is currently used only to validate header comments
 	let rangeInfo = classSymbols[0].location.range;
 	let classStartPosition:Position = rangeInfo[0] as Position;
-	// promiseArray.push(validateClassHeaderComment(classStartPosition, document)); LCM
+	promiseArray.push(validateClassHeaderComment(classStartPosition, document));
 	// Validate JS symbols
-	// promiseArray.push(validateJSSymbols(document, symbols)); // LCM
+	promiseArray.push(validateJSSymbols(document, symbols)); // LCM
 	const classMethodSymbols:any[] =  await connection.sendRequest('osc/getSymbols', { uri: document.uri, type: 'ClassMethod' });
 	promiseArray.push(validateSingleSymbol(document, classMethodSymbols,'classMethod')); // LCM
 	let diagnostics = (await Promise.all(promiseArray)).flat()

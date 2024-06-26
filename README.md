@@ -2,6 +2,9 @@
 
 This VSCode extension is intended to be used alongside InterSystems Language Server for some additional features when working with Cache Objectscript.  This extension will add linting abilities to the embedded javascript within Cache Objectscript classes.  ESLint does the majority of the heavy lifting for the functionality. The rules for ESLint are not configurable.
 
+
+Additionally, some basic Cache Objectscript is also linted for styling purposes.
+
 ## Functionality
 ### Linting
 * Provide diagnostics for code issues, but functional and style-only
