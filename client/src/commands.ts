@@ -12,7 +12,7 @@ const symbolKindIconMap = {
 type diagnosticData = {
 	code: string,
 	data:
-	{ uri: string, fixText: string, fixRange: any, fixMessage: string },
+	{ uri: string, fixText: string, fixRange: any, fixMessage: string, autoFix?:boolean},
 	hasDiagnosticCode: boolean,
 	message: string
 	range: any,
@@ -63,7 +63,7 @@ function fixDiagnostics(diagnostics: diagnosticData[], uri: Uri) {
 	let wsEdit = new WorkspaceEdit();
 	for (let diagnostic of diagnostics) {
 		// If it is not one of our diagnostics or we don't have a fix for it, continue
-		if (!diagnostic.data || !diagnostic.data.fixRange) continue;
+		if (!diagnostic.data || !diagnostic.data.fixRange || diagnostic.data.autoFix===false) continue;
 
 		// fixRange comes from the server's definition of Range, which use similar, but different data types.
 		// Conver it to a vscode.Range so that comparisons can work correctly.
